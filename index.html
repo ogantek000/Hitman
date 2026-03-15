@@ -2401,11 +2401,13 @@ function olStartGame(){
   // Init host side
   G=olMakeGame(hName,gName,deck);
   OL.pIdx=0;
-  $id('online-ov').style.display='none';
+  // Hide ALL overlays to ensure game is visible
+  ['menu-ov','setup-ov','online-ov','win-ov','hitman-ov','angel-ov','picker-ov'].forEach(function(id){
+    var el=$id(id);if(el)el.style.display='none';
+  });
   $id('exit-btn').style.display='block';
   var jm=$id('jazz-man');if(jm)jm.style.display='block';
   render();
-  // Push state to guest after short delay (give guest time to init)
   setTimeout(olPush,500);
 }
 
@@ -2417,7 +2419,10 @@ var _olRecvOrig=null;
     if(d&&d.t==='init'&&!OL.isHost){
       G=olMakeGame(d.hName,d.gName,d.deck);
       OL.pIdx=1;
-      $id('online-ov').style.display='none';
+      // Hide ALL overlays
+      ['menu-ov','setup-ov','online-ov','win-ov','hitman-ov','angel-ov','picker-ov'].forEach(function(id){
+        var el=$id(id);if(el)el.style.display='none';
+      });
       $id('exit-btn').style.display='block';
       var jm=$id('jazz-man');if(jm)jm.style.display='block';
       render();
