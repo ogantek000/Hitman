@@ -1407,8 +1407,11 @@ function render(){
   }
   // header
   var h=$id('header');
+  var myTurnNow = !G.onlineMode || (G.cur===OL.pIdx);
   if(!cur||cur.isBot){
     h.innerHTML='<span class="h-wait">'+(cur?cur.name.toUpperCase()+' myśli...':'HITMAN')+'</span>';
+  } else if(G.onlineMode && !myTurnNow){
+    h.innerHTML='<span class="h-wait">⏳ TURA: '+cur.name.toUpperCase()+'</span>';
   } else if(G.phase==='hand-play'){
     h.innerHTML='<span class="h-name">'+cur.name.toUpperCase()+'</span><span class="h-wait"> – zagraj kartę</span>';
   } else {
@@ -1610,11 +1613,14 @@ function renderHandAndButtons(){
   var hc=$id('hand-cards'),br=$id('btn-row');
   hc.innerHTML='';br.innerHTML='';
   if(!G||G.over)return;
-  var cur=G.players[G.cur];
-  // Show MY hand: in online mode use OL.pIdx, offline always player 0
-  var myPIdx=G.onlineMode?OL.pIdx:0;
-  var hp=G.players[myPIdx];
-  if(hp&&hp.alive){
+
+  // Who am I?
+  var myPIdx = G.onlineMode ? OL.pIdx : 0;
+  var isMyTurnNow = G.cur === myPIdx;
+
+  // Always show MY hand
+  var hp = G.players[myPIdx];
+  if(hp && hp.alive && hp.hand.length > 0){
     var html='';
     for(var i=0;i<hp.hand.length;i++){
       html+='<div style="margin:0 -4px;flex-shrink:0" onclick="selectCard('+i+')">'
@@ -1622,18 +1628,24 @@ function renderHandAndButtons(){
     }
     hc.innerHTML=html;
   }
-  if(!cur||cur.alive===false)return;
-  // Online: show whose turn it is; disable action buttons if not my turn  
-  var myTurn = !G.onlineMode || (G.cur===OL.pIdx);
-  if(G.onlineMode&&!myTurn){
+
+  var cur=G.players[G.cur];
+  if(!cur||!cur.alive)return;
+
+  // Not my turn — show waiting message
+  if(!isMyTurnNow){
     br.innerHTML='<span class="phase-lbl" style="color:#7a5a2a;letter-spacing:2px">⏳ Tura: '+cur.name.toUpperCase()+'</span>';
     return;
   }
+
+  // MY TURN — show action buttons
+  var curP = G.players[myPIdx]; // = cur (same player)
   if(G.phase==='draw'){
     var canDraw=G.drawsLeft>0&&G.deck.length>0;
     var dBtn=canDraw?'<button class="abtn btn-gold" onclick="humanDraw()">📤 Dobierz kartę</button>':'';
     var hasOldCard=false;
-    for(var i=0;i<hp.hand.length;i++)if(i!==G.newCardIdx&&hp.hand[i].id!=='angel'){hasOldCard=true;break;}
+    var myHand=curP?curP.hand:[];
+    for(var i=0;i<myHand.length;i++)if(i!==G.newCardIdx&&myHand[i].id!=='angel'){hasOldCard=true;break;}
     var pHint=hasOldCard?'<span class="phase-lbl">lub zagraj kartę z ręki</span>':'';
     var eBtn='<button class="abtn btn-green" onclick="endTurnEarly()">✓ Zakończ turę</button>';
     if(!canDraw&&G.deck.length===0){
@@ -1642,7 +1654,8 @@ function renderHandAndButtons(){
       br.innerHTML=dBtn+pHint+eBtn;
     }
   } else if(G.phase==='hand-play'){
-    var selC=(G.selectedCard>=0&&G.selectedCard!==G.newCardIdx)?hp.hand[G.selectedCard]:null;
+    var myHand2=curP?curP.hand:[];
+    var selC=(G.selectedCard>=0&&G.selectedCard!==G.newCardIdx)?myHand2[G.selectedCard]:null;
     var pb='';
     if(selC&&selC.id==='angel'){
       pb='<span class="phase-lbl" style="color:#aaa">Anioł działa przy Hitmanie</span>';
