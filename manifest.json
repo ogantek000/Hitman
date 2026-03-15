@@ -1,0 +1,15 @@
+{
+  "name": "Hitman",
+  "short_name": "Hitman",
+  "description": "Card game",
+  "start_url": "index.html",
+  "display": "standalone",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png"
+    },
+  
+  ]
+}
