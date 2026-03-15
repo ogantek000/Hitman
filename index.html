@@ -2055,155 +2055,161 @@ function nextTurn(){
 }
 
 /* ================================================================
-   ONLINE MULTIPLAYER
-   Uses BroadcastChannel (same device / same browser, different tabs)
-   + localStorage polling as fallback for cross-tab sync
-   For true cross-device: share the same network and open file from server
+   ONLINE MULTIPLAYER — PeerJS P2P (works cross-device, no server needed)
+   Host gets a PeerID shown as the room code.
+   Guest connects directly to that PeerID.
 ================================================================ */
 var ONLINE = {
-  bc: null,           // BroadcastChannel
+  peer: null,       // PeerJS Peer object
+  conn: null,       // DataConnection
   roomCode: null,
   myName: null,
   isHost: false,
   myIdx: 0,
   players: [],
+  peerReady: false,
 };
 
+/* ── load PeerJS lazily ── */
+function loadPeerJS(cb){
+  if(window.Peer){cb();return;}
+  var s=document.createElement('script');
+  s.src='https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
+  s.onload=function(){cb();};
+  s.onerror=function(){onlineSetStatus('Nie można załadować PeerJS. Sprawdź internet.','#cc4444');};
+  document.head.appendChild(s);
+}
+
 function buildOnlineUI(){
-  var c = $id('online-content');
-  c.innerHTML =
+  var c=$id('online-content');
+  c.innerHTML=
     '<div class="slbl" style="margin-bottom:4px">TWOJE IMIĘ</div>'+
     '<input class="sinp" id="online-name" value="Gracz" maxlength="14">'+
     '<div class="divider" style="margin:6px 0"></div>'+
-    '<button class="mbtn pri" style="width:100%" onclick="onlineCreate()">🏠 Stwórz pokój</button>'+
-    '<div class="menu-sub" style="font-size:11px;margin:0">— lub —</div>'+
-    '<div class="slbl" style="margin-bottom:2px">KOD POKOJU (6 cyfr)</div>'+
-    '<input class="sinp" id="online-code" placeholder="ABC123" maxlength="6" style="text-transform:uppercase;letter-spacing:4px">'+
+    '<button class="mbtn pri" style="width:100%" onclick="onlineCreate()">🏠 Stwórz pokój (Host)</button>'+
+    '<div class="menu-sub" style="font-size:11px;margin:4px 0">— lub —</div>'+
+    '<div class="slbl" style="margin-bottom:3px">KOD POKOJU OD HOSTA</div>'+
+    '<input class="sinp" id="online-code" placeholder="wklej tutaj kod" maxlength="40" style="letter-spacing:1px;font-size:13px">'+
     '<button class="mbtn pri" style="width:100%" onclick="onlineJoin()">🔗 Dołącz do pokoju</button>'+
-    '<div id="online-status" style="font-family:IM Fell English,serif;font-size:12px;color:#7a5a2a;text-align:center;min-height:30px;margin-top:6px;line-height:1.6"></div>'+
-    '<div style="font-family:IM Fell English,serif;font-size:10px;color:#4a3018;text-align:center;margin-top:4px;line-height:1.5">'+
-    '📋 Otwórz tę samą stronę w 2 zakładkach<br>lub na 2 urządzeniach w tej samej sieci</div>';
+    '<div id="online-status" style="font-family:IM Fell English,serif;font-size:12px;color:#c8a060;text-align:center;min-height:32px;margin-top:6px;line-height:1.6;padding:0 8px"></div>';
 }
 
 function onlineSetStatus(msg,color){
-  var s=$id('online-status');if(s){s.textContent=msg;s.style.color=color||'#c8a060';}
+  var s=$id('online-status');
+  if(s){s.innerHTML=msg;s.style.color=color||'#c8a060';}
 }
 
+/* ── HOST ── */
 function onlineCreate(){
   var name=($id('online-name')&&$id('online-name').value.trim())||'Host';
-  ONLINE.myName=name;ONLINE.isHost=true;
-  ONLINE.roomCode=Math.random().toString(36).substr(2,6).toUpperCase();
-  ONLINE.players=[name];
-  onlineSetupChannel();
-  // Write room to localStorage so guest can find it
-  try{
-    localStorage.setItem('hitman_room_'+ONLINE.roomCode, JSON.stringify({host:name,ts:Date.now()}));
-  }catch(e){}
-  onlineSend({type:'room_created',room:ONLINE.roomCode,host:name});
-  showOnlineRoom(ONLINE.roomCode, true, name);
-  onlineSetStatus('Czekaj na gościa...','#88aaff');
+  ONLINE.myName=name; ONLINE.isHost=true; ONLINE.myIdx=0;
+  onlineSetStatus('Ładowanie PeerJS...','#88aaff');
+  loadPeerJS(function(){
+    try{
+      ONLINE.peer=new Peer(undefined,{debug:0});
+      ONLINE.peer.on('open',function(id){
+        ONLINE.roomCode=id;
+        ONLINE.peerReady=true;
+        onlineSetStatus(
+          'Twój kod pokoju:<br>'+
+          '<span style="font-family:Cinzel Decorative,serif;font-size:clamp(11px,3vw,16px);color:#f5c842;letter-spacing:2px;word-break:break-all">'+id+'</span><br>'+
+          '<span style="font-size:10px;color:#7a5a2a">Wyślij ten kod znajomemu</span>',
+          '#c8a060'
+        );
+        showOnlineRoom(id, true, name);
+      });
+      ONLINE.peer.on('connection',function(conn){
+        ONLINE.conn=conn;
+        conn.on('open',function(){
+          var guestName=ONLINE.players[1]||'Gracz';
+          onlineSetStatus('🟢 '+guestName+' połączony!','#44ff88');
+          var sb=$id('online-start-btn');if(sb)sb.style.display='block';
+        });
+        conn.on('data',function(msg){onlineHandleMessage(msg);});
+        conn.on('close',function(){onlineSetStatus('Gracz rozłączył się.','#cc4444');});
+        // receive guest name
+        conn.on('open',function(){
+          // guest sends their name immediately
+        });
+      });
+      ONLINE.peer.on('error',function(err){
+        onlineSetStatus('Błąd: '+err.type,'#cc4444');
+      });
+    }catch(e){
+      onlineSetStatus('Błąd inicjalizacji PeerJS','#cc4444');
+    }
+  });
 }
 
+/* ── GUEST ── */
 function onlineJoin(){
   var name=($id('online-name')&&$id('online-name').value.trim())||'Gracz';
-  var code=($id('online-code')&&$id('online-code').value.trim().toUpperCase())||'';
-  if(!code||code.length<3){onlineSetStatus('Wpisz kod pokoju!','#cc4444');return;}
-  ONLINE.myName=name;ONLINE.isHost=false;ONLINE.roomCode=code;ONLINE.myIdx=1;
-  onlineSetupChannel();
-  onlineSetStatus('Dołączam do pokoju '+code+'...','#88aaff');
-  // Send join message
-  onlineSend({type:'join',room:code,name:name});
-  showOnlineRoom(code, false, name);
-  startLocalStoragePolling();
-}
-
-function onlineSetupChannel(){
-  if(ONLINE.bc){try{ONLINE.bc.close();}catch(e){}}
-  try{
-    ONLINE.bc = new BroadcastChannel('hitman_'+ONLINE.roomCode);
-    ONLINE.bc.onmessage = function(e){
-      try{onlineHandleMessage(e.data);}catch(err){console.log('msg err',err);}
-    };
-  }catch(e){
-    onlineSetStatus('BroadcastChannel niedostępny w tej przeglądarce','#cc4444');
-  }
+  var code=($id('online-code')&&$id('online-code').value.trim())||'';
+  if(!code){onlineSetStatus('Wklej kod pokoju od hosta!','#cc4444');return;}
+  ONLINE.myName=name; ONLINE.isHost=false; ONLINE.roomCode=code; ONLINE.myIdx=1;
+  onlineSetStatus('Ładowanie PeerJS...','#88aaff');
+  loadPeerJS(function(){
+    try{
+      ONLINE.peer=new Peer(undefined,{debug:0});
+      ONLINE.peer.on('open',function(){
+        onlineSetStatus('Łączę z hostem...','#88aaff');
+        ONLINE.conn=ONLINE.peer.connect(code,{reliable:true});
+        ONLINE.conn.on('open',function(){
+          onlineSetStatus('🟢 Połączono z hostem! Czekaj na start...','#44ff88');
+          // send our name to host
+          onlineSend({type:'join',name:name});
+          showOnlineRoom(code, false, name);
+        });
+        ONLINE.conn.on('data',function(msg){onlineHandleMessage(msg);});
+        ONLINE.conn.on('close',function(){onlineSetStatus('Host rozłączył się.','#cc4444');});
+        ONLINE.conn.on('error',function(e){onlineSetStatus('Błąd połączenia: '+e,'#cc4444');});
+      });
+      ONLINE.peer.on('error',function(err){
+        onlineSetStatus('Nie można połączyć. Sprawdź kod.<br>Błąd: '+err.type,'#cc4444');
+      });
+    }catch(e){
+      onlineSetStatus('Błąd inicjalizacji','#cc4444');
+    }
+  });
 }
 
 function onlineSend(msg){
-  if(ONLINE.bc){
-    try{ONLINE.bc.postMessage(msg);}catch(e){}
+  if(ONLINE.conn&&ONLINE.conn.open){
+    try{ONLINE.conn.send(msg);}catch(e){console.log('send err',e);}
   }
-  // Also write to localStorage for cross-window fallback
-  try{
-    var key='hitman_msg_'+ONLINE.roomCode;
-    var existing=[];
-    try{existing=JSON.parse(localStorage.getItem(key)||'[]');}catch(e2){}
-    existing.push({msg:msg,ts:Date.now()});
-    // keep only last 20 messages
-    if(existing.length>20)existing=existing.slice(-20);
-    localStorage.setItem(key,JSON.stringify(existing));
-  }catch(e){}
-}
-
-// Poll localStorage for messages (cross-device fallback)
-var _lastMsgTs=0;
-function startLocalStoragePolling(){
-  if(!ONLINE.roomCode)return;
-  setInterval(function(){
-    try{
-      var key='hitman_msg_'+ONLINE.roomCode;
-      var msgs=JSON.parse(localStorage.getItem(key)||'[]');
-      msgs.forEach(function(m){
-        if(m.ts>_lastMsgTs){
-          _lastMsgTs=m.ts;
-          if(m.msg&&m.msg.room===ONLINE.roomCode){
-            onlineHandleMessage(m.msg);
-          }
-        }
-      });
-    }catch(e){}
-  },400);
 }
 
 function onlineHandleMessage(msg){
   if(!msg||!msg.type)return;
-  if(msg.room&&msg.room!==ONLINE.roomCode)return; // filter other rooms
 
   if(msg.type==='join'){
+    // host receives guest name
     if(ONLINE.isHost){
       ONLINE.players=[ONLINE.myName, msg.name];
       var c=$id('online-room-players');
       if(c)c.innerHTML=
-        '<div style="color:#44ff88;font-family:Cinzel,serif;font-size:12px">● '+ONLINE.myName+' (Ty — host)</div>'+
-        '<div style="color:#f5c842;font-family:Cinzel,serif;font-size:12px">● '+msg.name+'</div>';
+        '<div style="color:#44ff88;font-family:Cinzel,serif;font-size:12px;margin:2px 0">● '+ONLINE.myName+' (Ty — host)</div>'+
+        '<div style="color:#f5c842;font-family:Cinzel,serif;font-size:12px;margin:2px 0">● '+msg.name+' (gość)</div>';
+      onlineSetStatus('🟢 '+msg.name+' dołączył!','#44ff88');
       var sb=$id('online-start-btn');if(sb)sb.style.display='block';
-      onlineSetStatus('Gracz '+msg.name+' dołączył!','#44ff88');
-      // Reply to guest with confirmation
-      setTimeout(function(){
-        onlineSend({type:'guest_ok',room:ONLINE.roomCode,name:msg.name,host:ONLINE.myName});
-      },100);
     }
   }
-  if(msg.type==='guest_ok'){
-    if(!ONLINE.isHost){
-      ONLINE.players=[msg.host, msg.name];
-      var c=$id('online-room-players');
-      if(c)c.innerHTML=
-        '<div style="color:#f5c842;font-family:Cinzel,serif;font-size:12px">● '+msg.host+' (host)</div>'+
-        '<div style="color:#44ff88;font-family:Cinzel,serif;font-size:12px">● '+msg.name+' (Ty)</div>';
-      onlineSetStatus('Połączono! Czekaj aż host rozpocznie...','#44ff88');
-    }
-  }
+
   if(msg.type==='start'){
-    if(!ONLINE.isHost){ // guest receives start
+    // guest receives game start
+    if(!ONLINE.isHost){
       ONLINE.players=msg.players||ONLINE.players;
       startOnlineGame(msg.gameState, 1);
     }
   }
+
   if(msg.type==='action'){
-    // Only apply if it's not from ourselves
-    if(msg.senderIdx!==ONLINE.myIdx){
-      applyOnlineAction(msg.action);
+    applyOnlineAction(msg.action);
+  }
+  if(msg.type==='sync'){
+    // full state sync from host
+    if(!ONLINE.isHost&&msg.state){
+      G=msg.state;render();
     }
   }
 }
@@ -2211,81 +2217,86 @@ function onlineHandleMessage(msg){
 function showOnlineRoom(code, isHost, myName){
   $id('online-ov').style.display='flex';
   var c=$id('online-content');
-  c.innerHTML =
-    '<div class="slbl" style="font-size:14px;letter-spacing:3px">KOD POKOJU</div>'+
-    '<div style="font-family:Cinzel Decorative,serif;font-size:clamp(22px,6vw,36px);color:var(--gold2);letter-spacing:8px;text-shadow:0 0 16px var(--gold2)44;padding:8px 20px;border:1px solid var(--gold);border-radius:6px;background:#1a0e0488">'+code+'</div>'+
-    '<div class="menu-sub" style="font-size:11px">'+(isHost?'Podziel się kodem ze znajomym':'Czekaj na hosta')+'</div>'+
-    '<div id="online-room-players" style="font-family:IM Fell English,serif;font-size:13px;display:flex;flex-direction:column;gap:4px;min-height:36px;text-align:center">'+
-      '<div style="color:'+(isHost?'#44ff88':'#f5c842')+'">● '+myName+(isHost?' (ty)':' — czekanie...')+'</div>'+
+  c.innerHTML=
+    '<div class="slbl" style="font-size:11px;letter-spacing:2px">'+(isHost?'KOD TWOJEGO POKOJU':'POŁĄCZONO Z')+'</div>'+
+    '<div style="font-family:Cinzel,serif;font-size:clamp(10px,2.5vw,14px);color:var(--gold2);letter-spacing:2px;word-break:break-all;padding:8px 14px;border:1px solid var(--gold);border-radius:6px;background:#1a0e0488;text-align:center;max-width:min(300px,80vw)">'+code+'</div>'+
+    '<div class="menu-sub" style="font-size:10px">'+(isHost?'Wyślij ten kod znajomemu przez SMS/chat':'Czekaj na start od hosta')+'</div>'+
+    '<div id="online-room-players" style="font-family:Cinzel,serif;font-size:12px;display:flex;flex-direction:column;gap:4px;min-height:36px;text-align:center">'+
+      '<div style="color:'+(isHost?'#44ff88':'#f5c842')+'">● '+myName+(isHost?' (Ty — host)':' (gość)')+'</div>'+
+      (isHost?'':'<div style="color:#888">● Host — łączenie...</div>')+
     '</div>'+
-    (isHost?'<button id="online-start-btn" class="mbtn pri" style="width:100%;display:none" onclick="onlineStartGame()">▶ Rozpocznij grę</button>':
-            '<div class="menu-sub" style="font-size:11px;color:#4a3a28">Czekanie na start od hosta...</div>')+
-    '<div id="online-status" style="font-family:IM Fell English,serif;font-size:12px;color:#7a5a2a;text-align:center;min-height:16px"></div>';
+    '<div id="online-status" style="font-family:IM Fell English,serif;font-size:12px;color:#c8a060;text-align:center;min-height:24px;padding:0 8px;line-height:1.5"></div>'+
+    (isHost?'<button id="online-start-btn" class="mbtn pri" style="width:100%;display:none" onclick="onlineStartGame()">▶ Rozpocznij grę</button>':'');
 }
 
 function onlineStartGame(){
   if(!ONLINE.isHost)return;
-  setupMode='online';
   var hostName=ONLINE.players[0]||'Host';
-  var guestName=ONLINE.players[1]||'Guest';
+  var guestName=ONLINE.players[1]||'Gracz';
+  // Build game with default settings
   CFG.hitman=1;
   var safe=20;var b=Math.floor(safe/4),r=safe%4;
   CFG.s1=b+(r>0?1:0);CFG.s2=b+(r>1?1:0);CFG.s3=b+(r>2?1:0);CFG.s4=b;
   CFG.shuffle=3;CFG.fake=2;CFG.angel=3;CFG.steal=2;CFG.give=2;CFG.cancel=2;
+  CFG.peek=2;CFG.chain=1;CFG.addhit=1;CFG.reverse=2;CFG.copy=1;CFG.purge=1;CFG.double=1;CFG.bottom=2;
   var deck=buildDeck();
   var deckUids=deck.map(function(c){return c.uid;});
   var state={deck:deckUids,seed:Date.now(),players:[hostName,guestName]};
-  // Send start to guest
   onlineSend({type:'start',room:ONLINE.roomCode,gameState:state,players:[hostName,guestName]});
   startOnlineGame(state, 0);
-  startLocalStoragePolling();
 }
 
 function startOnlineGame(state, myIdx){
-  ONLINE.myIdx = myIdx;
-  // Rebuild deck from UIDs
-  var deckMap={};
+  ONLINE.myIdx=myIdx;
+  // Rebuild ordered deck from UIDs
   var tempDeck=buildDeck();
+  var deckMap={};
   tempDeck.forEach(function(c){deckMap[c.uid]=c;});
-  var orderedDeck=state.deck.map(function(uid){return deckMap[uid]||tempDeck[0];}).filter(Boolean);
-  var p0name=ONLINE.players[0]||'Host';
-  var p1name=ONLINE.players[1]||'Guest';
+  // Also map by type+index for robustness
+  var allCards={};
+  for(var k in CDEF){
+    var t=CDEF[k];
+    for(var i=0;i<(t.defCount||0);i++){
+      allCards[k+'_'+i]={id:t.id,name:t.name,art:t.art,type:t.type,power:t.power,uid:k+'_'+i};
+    }
+  }
+  var orderedDeck=(state.deck||[]).map(function(uid){
+    return deckMap[uid]||allCards[uid]||tempDeck[0];
+  }).filter(Boolean);
+  var p0name=state.players?state.players[0]:'Host';
+  var p1name=state.players?state.players[1]:'Gracz';
   G={
     players:[
-      {name:p0name,isBot:false,hand:[],alive:true,char:'ghost',personality:'human'},
+      {name:p0name,isBot:false,hand:[],alive:true,char:cfgVals._playerChar||'ghost',personality:'human'},
       {name:p1name,isBot:false,hand:[],alive:true,char:'wolf',personality:'human'},
     ],
     deck:orderedDeck,discardPile:[],discard:0,
     cur:0,lastPow:null,over:false,
     phase:'draw',locked:false,
     selectedCard:-1,drawsLeft:3,newCardIdx:-1,playedCardThisTurn:false,
+    direction:1,chainedCard:null,chainTurnsLeft:0,doubleTarget:-1,doublingTurn:false,
     onlineMode:true,myIdx:myIdx,
   };
   $id('online-ov').style.display='none';
   $id('exit-btn').style.display='block';
+  var jm=$id('jazz-man');if(jm)jm.style.display='block';
   render();
 }
 
 function applyOnlineAction(action){
   if(!G)return;
-  // apply action from opponent
   if(action.type==='draw'){doDrawCard(null);}
+  if(action.type==='end'){G.selectedCard=-1;G.newCardIdx=-1;nextTurn();}
   if(action.type==='play'){
-    var c=G.players[G.cur].hand[action.idx];
-    if(c){selectCard(action.idx);setTimeout(playSelected,100);}
-  }
-  if(action.type==='end'){endHandPlay();}
-  if(action.type==='useAngel'){useAngel(action.idx);}
-  if(action.type==='acceptDeath'){acceptDeath();}
-  if(action.type==='placeHitman'){
-    // place hitman at position
-    var hc={id:'hitman',name:'HITMAN',art:'🔫',type:'hit',power:false,uid:'hitman_ret'};
-    G.deck.splice(action.pos,0,hc);
-    G.lastPow={id:'angel'};G.phase='draw';G.newCardIdx=-1;
-    $id('angel-ov').style.display='none';render();
+    if(G.players[G.cur]){
+      var idx=action.idx;
+      if(idx>=0&&idx<G.players[G.cur].hand.length){
+        G.selectedCard=idx;
+        setTimeout(playSelected,80);
+      }
+    }
   }
 }
-/* ── END ONLINE ── */
 
 showMenu();
 </script>
