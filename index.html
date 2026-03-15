@@ -2233,7 +2233,11 @@ function olJoin(){
 }
 
 function olSend(msg){
-  if(OL.conn&&OL.conn.open)try{OL.conn.send(msg);}catch(e){}
+  if(OL.conn&&OL.conn.open){
+    try{OL.conn.send(msg);}catch(e){dbg('SEND ERR: '+e);}
+  } else {
+    dbg('SEND FAIL: conn='+(OL.conn?'exists':'null')+' open='+(OL.conn?OL.conn.open:'N/A'));
+  }
 }
 
 /* ── HOST pushes full state to guest after every change ── */
@@ -2348,9 +2352,10 @@ function olAct(a){
 /* ── Host executes guest's action ── */
 function olDoGuestAction(a){
   if(!OL.isHost||!G)return;
-  if(G.cur!==1)return; // not guest's turn, ignore
+  dbg('olDoGuestAction a='+a.t+' cur='+G.cur+' phase='+G.phase);
+  if(G.cur!==1){dbg('NOT GUEST TURN cur='+G.cur);olPush();return;}
   var cur=G.players[1];
-  if(!cur||!cur.alive)return;
+  if(!cur||!cur.alive){dbg('GUEST NOT ALIVE');return;}
 
   if(a.t==='draw'){
     if(G.phase!=='draw'||G.drawsLeft<=0||G.deck.length===0){olPush();return;}
