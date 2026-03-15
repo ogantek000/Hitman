@@ -1399,11 +1399,6 @@ function render(){
     h.innerHTML='<span class="h-your">YOUR </span><span class="h-name">'+cur.name.toUpperCase()+'</span><span class="h-turn"> TURN</span>';
   }
   renderOpps();renderHandAndButtons();
-  // Auto-sync to guest on every render when host
-  if(G&&G.onlineMode&&OL.isHost&&OL.conn&&OL.conn.open){
-    clearTimeout(render._syncTimer);
-    render._syncTimer=setTimeout(olSync,50);
-  }
 }
 function fanCardsHTML(n){
   if(n<=0)return'<div class="opp-hand-fan" style="height:clamp(34px,6.5vw,50px);width:clamp(54px,10vw,80px)"></div>';
@@ -1612,8 +1607,9 @@ function renderHandAndButtons(){
     hc.innerHTML=html;
   }
   if(!cur||cur.alive===false)return;
-  // Online: block buttons if not my turn
-  if(G.onlineMode&&!isMyOnlineTurn()){
+  // Online: show whose turn it is; disable action buttons if not my turn  
+  var myTurn = !G.onlineMode || (G.cur===OL.pIdx);
+  if(G.onlineMode&&!myTurn){
     br.innerHTML='<span class="phase-lbl" style="color:#7a5a2a;letter-spacing:2px">⏳ Tura: '+cur.name.toUpperCase()+'</span>';
     return;
   }
@@ -1649,17 +1645,15 @@ function renderHandAndButtons(){
 ================================================================ */
 function selectCard(idx){
   if(!G||G.over||G.locked)return;
-  if(G.onlineMode&&!isMyOnlineTurn())return;
   var cur=G.players[G.cur];
   if(!cur||!cur.alive)return;
   if(G.phase!=='draw'&&G.phase!=='hand-play')return;
   var newSel=(G.selectedCard===idx)?-1:idx;
   if(G.onlineMode&&!OL.isHost){
-    // Optimistic local feedback
     G.selectedCard=newSel;
     if(G.phase==='draw'&&newSel>=0&&newSel!==G.newCardIdx){
-      var cc=G.players[OL.pIdx].hand[newSel];
-      if(cc&&cc.id!=='angel')G.phase='hand-play';
+      var myHand=G.players[OL.pIdx].hand;
+      if(myHand[newSel]&&myHand[newSel].id!=='angel')G.phase='hand-play';
     }
     renderHandAndButtons();
     olAct({t:'sel',i:newSel});
@@ -1667,14 +1661,14 @@ function selectCard(idx){
   }
   G.selectedCard=newSel;
   if(G.phase==='draw'&&G.selectedCard>=0&&G.selectedCard!==G.newCardIdx){
-    var c=cur.hand[G.selectedCard];
+    var c=G.players[G.cur].hand[G.selectedCard];
     if(c&&c.id!=='angel')G.phase='hand-play';
   }
   renderHandAndButtons();
+  if(G.onlineMode&&OL.isHost) olPush();
 }
 function playSelected(){
   if(!G||G.over||G.locked)return;
-  if(G.onlineMode&&!isMyOnlineTurn())return;
   if(G.selectedCard<0||G.selectedCard===G.newCardIdx)return;
   var cur=G.players[G.cur];
   if(!cur||!cur.alive)return;
@@ -1686,25 +1680,26 @@ function playSelected(){
   if(G.newCardIdx>G.selectedCard)G.newCardIdx--;
   G.selectedCard=-1;pushDiscard(c);
   if(c.power){
-    executePower(c,cur,function(){G.locked=false;olSync();});
+    executePower(c,cur,function(){G.locked=false;if(G.onlineMode&&OL.isHost)olPush();});
   } else {
     G.playedCardThisTurn=true;showNotif(c.art+' '+c.name,'#449944');
     G.phase='draw';G.newCardIdx=-1;
-    nextTurn();olSync();G.locked=false;
+    nextTurn();G.locked=false;
+    if(G.onlineMode&&OL.isHost) olPush();
   }
 }
 function endHandPlay(){
   if(!G||G.locked||G.phase!=='hand-play')return;
-  if(G.onlineMode&&!isMyOnlineTurn())return;
   if(G.onlineMode&&!OL.isHost){olAct({t:'end'});return;}
-  G.selectedCard=-1;G.phase='draw';G.newCardIdx=-1;nextTurn();olSync();
+  G.selectedCard=-1;G.phase='draw';G.newCardIdx=-1;nextTurn();
+  if(G.onlineMode&&OL.isHost) olPush();
 }
 function endTurnEarly(){
   if(!G||G.locked||G.phase!=='draw')return;
-  if(G.onlineMode&&!isMyOnlineTurn())return;
   if(G.drawsLeft===3&&!G.playedCardThisTurn){showNotif('MUSISZ DOBRAĆ LUB ZAGRAĆ!','#cc4444');return;}
   if(G.onlineMode&&!OL.isHost){olAct({t:'end'});return;}
-  G.selectedCard=-1;G.newCardIdx=-1;nextTurn();olSync();
+  G.selectedCard=-1;G.newCardIdx=-1;nextTurn();
+  if(G.onlineMode&&OL.isHost) olPush();
 }
 
 /* ================================================================
@@ -1712,12 +1707,12 @@ function endTurnEarly(){
 ================================================================ */
 function humanDraw(){
   if(!G||G.over||G.locked)return;
-  if(G.onlineMode&&!isMyOnlineTurn())return;
   if(G.phase!=='draw'||G.drawsLeft<=0)return;
   if(G.deck.length===0){showNotif('TALIA PUSTA!','#cc4444');return;}
+  // Online: guest sends action to host; host runs locally
   if(G.onlineMode&&!OL.isHost){olAct({t:'draw'});return;}
   G.locked=true;G.selectedCard=-1;
-  doDrawCard(function(){G.locked=false;if(G.onlineMode&&OL.isHost)olSync();});
+  doDrawCard(function(){G.locked=false;if(G.onlineMode&&OL.isHost)olPush();});
 }
 
 /* ================================================================
@@ -2008,7 +2003,7 @@ function acceptDeath(){
   var cur=G.players[G.cur];
   cur.alive=false;G.phase='draw';G.lastPow=null;
   if(!checkWin())nextTurn();
-  olSync();
+  if(G.onlineMode&&OL.isHost) olPush();
 }
 
 /* ================================================================
@@ -2117,206 +2112,185 @@ function nextTurn(){
   G.cur=next;G.phase='draw';G.selectedCard=-1;G.drawsLeft=3;G.newCardIdx=-1;
   G.playedCardThisTurn=false;
   render();
-  // Online: host must sync state whenever turn changes
-  if(G.onlineMode&&OL.isHost) olSync();
+  if(G.onlineMode&&OL.isHost) olPush();
   if(isCurBot())setTimeout(botTurn,1500);
 }
 
 /* ================================================================
-   ONLINE MULTIPLAYER — PeerJS P2P
-   Simple rule: HOST runs ALL game logic. GUEST just sends button-press
-   events and receives full state back. No logic on guest side at all.
+   ONLINE MULTIPLAYER — PeerJS
+   RULE: Host runs 100% of game logic.
+         After EVERY state change, host calls olPush() which sends full state.
+         Guest receives state → overwrites G → renders.
+         Guest buttons → send tiny action → host processes → host pushes state.
 ================================================================ */
-var OL = {
-  peer:null, conn:null, code:null,
-  name:'', isHost:false, pIdx:0   // pIdx = which G.players[] index am I
-};
+var OL={peer:null,conn:null,code:null,name:'',isHost:false,pIdx:0};
 
-function isMyOnlineTurn(){
-  // Returns true if I should be able to press buttons
-  if(!G||!G.onlineMode) return true;
-  return G.cur === OL.pIdx;
-}
-
+/* ── PeerJS loader ── */
 function loadPeerJS(cb){
   if(window.Peer){cb();return;}
   var s=document.createElement('script');
   s.src='https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
   s.onload=cb;
-  s.onerror=function(){olStatus('Brak internetu / PeerJS niedostępny','#cc4444');};
+  s.onerror=function(){olStat('❌ Brak internetu lub PeerJS niedostępne','#cc4444');};
   document.head.appendChild(s);
 }
 
+/* ── UI ── */
 function buildOnlineUI(){
   $id('online-content').innerHTML=
-    '<div class="slbl" style="margin-bottom:4px">TWOJE IMIĘ</div>'+
-    '<input class="sinp" id="ol-name" value="Gracz" maxlength="14">'+
-    '<div class="divider" style="margin:6px 0"></div>'+
-    '<button class="mbtn pri" style="width:100%" onclick="olCreate()">🏠 Stwórz pokój (Host)</button>'+
-    '<div class="menu-sub" style="font-size:11px;margin:4px 0">— lub —</div>'+
-    '<div class="slbl" style="margin-bottom:3px">KOD POKOJU OD HOSTA</div>'+
-    '<input class="sinp" id="ol-code" placeholder="wklej kod tutaj" maxlength="80" style="font-size:11px">'+
-    '<button class="mbtn pri" style="width:100%" onclick="olJoin()">🔗 Dołącz do pokoju</button>'+
-    '<div id="ol-status" style="font-family:IM Fell English,serif;font-size:12px;color:#c8a060;text-align:center;min-height:32px;margin-top:6px;line-height:1.6;padding:0 8px"></div>';
+    '<div class="slbl">TWOJE IMIĘ</div>'+
+    '<input class="sinp" id="ol-nm" value="Gracz" maxlength="14">'+
+    '<div class="divider" style="margin:5px 0"></div>'+
+    '<button class="mbtn pri" style="width:100%" onclick="olCreate()">🏠 Stwórz pokój</button>'+
+    '<div class="menu-sub" style="font-size:11px;margin:3px 0">— lub —</div>'+
+    '<div class="slbl">KOD OD HOSTA</div>'+
+    '<input class="sinp" id="ol-code" placeholder="wklej kod" maxlength="80" style="font-size:11px">'+
+    '<button class="mbtn pri" style="width:100%" onclick="olJoin()">🔗 Dołącz</button>'+
+    '<div id="ol-stat" style="font-size:12px;color:#c8a060;text-align:center;margin-top:6px;min-height:28px;line-height:1.5;font-family:IM Fell English,serif;padding:0 4px"></div>';
 }
-function olStatus(msg,col){
-  // ol-status lives inside online-content (created by olShowRoom)
-  var s=$id('ol-status');
-  if(s){s.innerHTML=msg;s.style.color=col||'#c8a060';}
-  // Also update online-status if it exists (buildOnlineUI div)
-  var s2=$id('online-status');
-  if(s2&&s2!==s){s2.innerHTML=msg;s2.style.color=col||'#c8a060';}
-}
+function olStat(m,c){var s=$id('ol-stat');if(s){s.innerHTML=m;s.style.color=c||'#c8a060';}}
 
+/* ── HOST creates room ── */
 function olCreate(){
-  var name=($id('ol-name')&&$id('ol-name').value.trim())||'Host';
+  var name=($id('ol-nm')&&$id('ol-nm').value.trim())||'Host';
   OL.name=name;OL.isHost=true;OL.pIdx=0;
-  // Show waiting room immediately with loading state
-  olShowRoom('...generowanie kodu...',true,name);
-  olStatus('Ładowanie PeerJS...','#88aaff');
+  olShowLobby('…generuję kod…',true,name);
+  olStat('Ładowanie…','#88aaff');
   loadPeerJS(function(){
-    olStatus('Tworzenie pokoju...','#88aaff');
     try{
       OL.peer=new Peer(undefined,{debug:0});
       OL.peer.on('open',function(id){
         OL.code=id;
-        // Update the code box
-        var cb=$id('ol-code-box');
-        if(cb)cb.innerHTML=id+'<br><span style="font-size:8px;color:#7a5a2a">tap aby skopiować</span>';
-        olStatus('Wyślij kod znajomemu i czekaj...','#88aaff');
+        var cb=$id('ol-cbox');if(cb){cb.textContent=id;cb.style.color='#f5c842';}
+        olStat('Wyślij kod znajomemu i czekaj','#88aaff');
       });
       OL.peer.on('connection',function(conn){
         OL.conn=conn;
-        conn.on('open',function(){
-          olStatus('🟢 Ktoś dołącza...','#ffcc44');
-        });
-        conn.on('data',function(d){olOnData(d);});
+        conn.on('data',function(d){olRecv(d);});
+        conn.on('open',function(){olStat('Ktoś się łączy…','#ffcc44');});
         conn.on('close',function(){if(G&&!G.over)showNotif('ROZŁĄCZONO','#cc4444');});
       });
-      OL.peer.on('error',function(e){olStatus('Błąd: '+e.type+'<br>Odśwież stronę i spróbuj ponownie.','#cc4444');});
-    }catch(e){olStatus('Błąd: '+e,'#cc4444');}
+      OL.peer.on('error',function(e){olStat('Błąd: '+e.type+'. Odśwież stronę.','#cc4444');});
+    }catch(e){olStat('Błąd PeerJS: '+e,'#cc4444');}
   });
 }
 
+/* ── GUEST joins room ── */
 function olJoin(){
-  var name=($id('ol-name')&&$id('ol-name').value.trim())||'Gracz';
+  var name=($id('ol-nm')&&$id('ol-nm').value.trim())||'Gracz';
   var code=($id('ol-code')&&$id('ol-code').value.trim())||'';
-  if(!code){olStatus('Wklej kod pokoju!','#cc4444');return;}
+  if(!code){olStat('Wklej kod pokoju!','#cc4444');return;}
   OL.name=name;OL.isHost=false;OL.pIdx=1;OL.code=code;
-  // Show room screen immediately
-  olShowRoom(code,false,name);
-  olStatus('Ładowanie PeerJS...','#88aaff');
+  olShowLobby(code,false,name);
+  olStat('Łączenie…','#88aaff');
   loadPeerJS(function(){
-    olStatus('Łączenie z hostem...','#88aaff');
     try{
       OL.peer=new Peer(undefined,{debug:0});
       OL.peer.on('open',function(){
-        olStatus('Nawiązywanie połączenia...','#88aaff');
         OL.conn=OL.peer.connect(code,{reliable:true,serialization:'json'});
         OL.conn.on('open',function(){
-          olStatus('🟢 Połączono! Czekaj na start hosta...','#44ff88');
-          olSend({t:'join',name:name});
+          olStat('🟢 Połączono! Czekaj na start hosta…','#44ff88');
+          olSend({t:'hi',name:name});
         });
-        OL.conn.on('data',function(d){olOnData(d);});
+        OL.conn.on('data',function(d){olRecv(d);});
         OL.conn.on('close',function(){if(G&&!G.over)showNotif('HOST ROZŁĄCZYŁ SIĘ','#cc4444');});
-        OL.conn.on('error',function(e){olStatus('Błąd połączenia: '+e,'#cc4444');});
+        OL.conn.on('error',function(){olStat('Błąd połączenia','#cc4444');});
       });
       OL.peer.on('error',function(e){
-        olStatus('Nie można połączyć.<br>Sprawdź kod i internet.<br><small>'+e.type+'</small>','#cc4444');
+        olStat('Nie można połączyć ('+e.type+')<br>Sprawdź kod i internet','#cc4444');
       });
-    }catch(e){olStatus('Błąd: '+e,'#cc4444');}
+    }catch(e){olStat('Błąd: '+e,'#cc4444');}
   });
 }
 
 function olSend(msg){
-  if(OL.conn&&OL.conn.open){try{OL.conn.send(msg);}catch(e){}}
+  if(OL.conn&&OL.conn.open)try{OL.conn.send(msg);}catch(e){}
 }
 
-function olCopy(){
-  if(!OL.code)return;
-  try{navigator.clipboard.writeText(OL.code).then(function(){olStatus('✓ Skopiowano!','#44ff88');});}
-  catch(e){olStatus('Skopiuj ręcznie kod powyżej','#888');}
-}
-
-/* ── HOST sends full game state after every change ── */
-function olSync(){
+/* ── HOST pushes full state to guest after every change ── */
+function olPush(){
   if(!OL.isHost||!G)return;
-  // Send a clean copy of state — guest will just overwrite their G with this
-  olSend({t:'sync', g:olSerialize()});
+  olSend({t:'state', s:{
+    pl:G.players.map(function(p){return{
+      name:p.name,hand:p.hand.map(function(c){return{id:c.id,name:c.name,art:c.art,type:c.type,power:!!c.power,uid:c.uid};}),
+      alive:p.alive,char:p.char||'ghost'
+    };}),
+    dk:G.deck.length,  // just count for display
+    dc:G.discard,
+    cur:G.cur,
+    phase:G.phase,
+    over:G.over,
+    dir:G.direction,
+    dkArr:G.deck.map(function(c){return{id:c.id,name:c.name,art:c.art,type:c.type,power:!!c.power,uid:c.uid};}),
+    dp:G.discardPile.length>0?{id:G.discardPile[G.discardPile.length-1].id,name:G.discardPile[G.discardPile.length-1].name,art:G.discardPile[G.discardPile.length-1].art,type:G.discardPile[G.discardPile.length-1].type,power:false}:null,
+    drawsLeft:G.drawsLeft,
+    newCardIdx:G.newCardIdx,
+    selCard:G.selectedCard,
+    lastPow:G.lastPow?{id:G.lastPow.id,name:G.lastPow.name}:null
+  }});
 }
 
-function olSerialize(){
-  // Deep copy arrays to avoid reference issues
-  var deckCopy=G.deck.map(function(c){return{id:c.id,name:c.name,art:c.art,type:c.type,power:c.power,uid:c.uid};});
-  var dpCopy=G.discardPile.map(function(c){return{id:c.id,name:c.name,art:c.art,type:c.type,power:c.power,uid:c.uid};});
-  return{
-    players:G.players.map(function(p){
-      return{name:p.name,isBot:p.isBot,
-        hand:p.hand.map(function(c){return{id:c.id,name:c.name,art:c.art,type:c.type,power:c.power,uid:c.uid};}),
-        alive:p.alive,char:p.char||'ghost',personality:p.personality||'human'};
-    }),
-    deck:deckCopy, discardPile:dpCopy, discard:G.discard,
-    cur:G.cur, lastPow:G.lastPow, over:G.over,
-    phase:G.phase, selectedCard:G.selectedCard, drawsLeft:G.drawsLeft,
-    newCardIdx:G.newCardIdx, playedCardThisTurn:G.playedCardThisTurn,
-    direction:G.direction, chainedCard:G.chainedCard, chainTurnsLeft:G.chainTurnsLeft,
-    doubleTarget:G.doubleTarget, doublingTurn:G.doublingTurn
-  };
-}
-
-/* ── incoming messages ── */
-function olOnData(d){
+/* ── incoming data ── */
+function olRecv(d){
   if(!d||!d.t)return;
 
-  if(d.t==='join'&&OL.isHost){
-    // guest sends their name
-    G_ONLINE_GUESTNAME = d.name;
-    var rp=$id('ol-room-players');
+  /* Host receives guest's hi message */
+  if(d.t==='hi'&&OL.isHost){
+    OL.guestName=d.name;
+    var rp=$id('ol-players');
     if(rp)rp.innerHTML=
       '<div style="color:#44ff88;font-family:Cinzel,serif;font-size:12px">● '+OL.name+' (Ty)</div>'+
       '<div style="color:#f5c842;font-family:Cinzel,serif;font-size:12px">● '+d.name+'</div>';
-    olStatus('🟢 '+d.name+' dołączył!','#44ff88');
-    var sb=$id('ol-start-btn');if(sb)sb.style.display='block';
-    olSend({t:'join_ok',hostName:OL.name,guestName:d.name});
+    olStat('🟢 '+d.name+' dołączył!','#44ff88');
+    var sb=$id('ol-startbtn');if(sb)sb.style.display='block';
+    olSend({t:'ok',host:OL.name,guest:d.name});
     return;
   }
 
-  if(d.t==='join_ok'&&!OL.isHost){
-    var rp=$id('ol-room-players');
+  /* Guest receives confirmation */
+  if(d.t==='ok'&&!OL.isHost){
+    var rp=$id('ol-players');
     if(rp)rp.innerHTML=
-      '<div style="color:#f5c842;font-family:Cinzel,serif;font-size:12px">● '+d.hostName+' (host)</div>'+
-      '<div style="color:#44ff88;font-family:Cinzel,serif;font-size:12px">● '+d.guestName+' (Ty)</div>';
-    olStatus('Czekaj na start hosta...','#44ff88');
+      '<div style="color:#f5c842;font-family:Cinzel,serif;font-size:12px">● '+d.host+' (host)</div>'+
+      '<div style="color:#44ff88;font-family:Cinzel,serif;font-size:12px">● '+d.guest+' (Ty)</div>';
+    olStat('Czekaj na start hosta…','#44ff88');
     return;
   }
 
-  if(d.t==='start'&&!OL.isHost){
-    olStartAsGuest(d.s);
+  /* Guest receives full state from host */
+  if(d.t==='state'&&!OL.isHost){
+    olApplyState(d.s);
     return;
   }
 
-  if(d.t==='sync'&&!OL.isHost){
-    // Overwrite our game state with host's authoritative state
-    olApplySync(d.g);
-    return;
-  }
-
+  /* Host receives action from guest */
   if(d.t==='act'&&OL.isHost){
-    // Guest sent an action — apply it then sync back
-    olApplyGuestAction(d.a);
+    olDoGuestAction(d.a);
     return;
   }
 }
 
-function olApplySync(s){
+/* ── Guest applies state received from host ── */
+function olApplyState(s){
   if(!G||!s)return;
-  G.players=s.players;
-  G.deck=s.deck;G.discardPile=s.discardPile;G.discard=s.discard;
-  G.cur=s.cur;G.lastPow=s.lastPow;G.over=s.over;
-  G.phase=s.phase;G.selectedCard=s.selectedCard;G.drawsLeft=s.drawsLeft;
-  G.newCardIdx=s.newCardIdx;G.playedCardThisTurn=s.playedCardThisTurn;
-  G.direction=s.direction;G.chainedCard=s.chainedCard;G.chainTurnsLeft=s.chainTurnsLeft;
-  G.doubleTarget=s.doubleTarget;G.doublingTurn=s.doublingTurn;
+  // Update players (hands, alive)
+  if(s.pl){
+    for(var i=0;i<s.pl.length&&i<G.players.length;i++){
+      G.players[i].hand=s.pl[i].hand||[];
+      G.players[i].alive=s.pl[i].alive;
+    }
+  }
+  if(s.dkArr)G.deck=s.dkArr;
+  G.discard=s.dc||0;
+  if(s.dp)G.discardPile=[s.dp]; else if(G.discardPile.length)G.discardPile=G.discardPile.slice(-1);
+  G.cur=s.cur;
+  G.phase=s.phase;
+  G.over=s.over;
+  G.direction=s.dir||1;
+  G.drawsLeft=s.drawsLeft||3;
+  G.newCardIdx=s.newCardIdx!=null?s.newCardIdx:-1;
+  G.selectedCard=s.selCard!=null?s.selCard:-1;
+  G.lastPow=s.lastPow||null;
   G.locked=false;
   if(G.over){
     $id('win-ov').style.display='flex';
@@ -2326,28 +2300,28 @@ function olApplySync(s){
   render();
 }
 
-/* ── HOST applies guest's action then syncs ── */
-function olApplyGuestAction(a){
+/* ── Guest sends action to host ── */
+function olAct(a){
+  if(G&&G.onlineMode&&!OL.isHost)olSend({t:'act',a:a});
+}
+
+/* ── Host executes guest's action ── */
+function olDoGuestAction(a){
   if(!OL.isHost||!G)return;
-  var cur=G.players[G.cur];
+  if(G.cur!==1)return; // not guest's turn, ignore
+  var cur=G.players[1];
   if(!cur||!cur.alive)return;
 
   if(a.t==='draw'){
-    // Validate it's actually guest's turn and can draw
-    if(G.cur!==1){olSync();return;} // not guest's turn
-    if(G.phase!=='draw'){olSync();return;}
-    if(G.drawsLeft<=0){olSync();return;}
-    if(G.deck.length===0){showNotif('TALIA PUSTA','#cc4444');olSync();return;}
+    if(G.phase!=='draw'||G.drawsLeft<=0||G.deck.length===0){olPush();return;}
     G.locked=true;
-    doDrawCard(function(){G.locked=false;olSync();});
+    doDrawCard(function(){G.locked=false;olPush();});
   }
   else if(a.t==='end'){
-    if(G.cur!==1){olSync();return;}
-    if(G.drawsLeft===3&&!G.playedCardThisTurn){olSync();return;}
+    if(G.drawsLeft===3&&!G.playedCardThisTurn){olPush();return;}
     G.selectedCard=-1;G.newCardIdx=-1;
     if(G.phase==='hand-play')G.phase='draw';
-    nextTurn();
-    // olSync happens inside nextTurn via render auto-sync
+    nextTurn();olPush();
   }
   else if(a.t==='sel'){
     G.selectedCard=a.i;
@@ -2355,131 +2329,126 @@ function olApplyGuestAction(a){
       var c=cur.hand[a.i];
       if(c&&c.id!=='angel')G.phase='hand-play';
     }
-    olSync();
+    olPush();
   }
   else if(a.t==='play'){
     var idx=a.i;
-    if(idx<0||idx>=cur.hand.length)return;
+    if(idx<0||idx>=cur.hand.length){olPush();return;}
     var c=cur.hand[idx];
-    if(!c||c.id==='angel')return;
+    if(!c||c.id==='angel'){olPush();return;}
     G.locked=true;
     cur.hand.splice(idx,1);
     if(G.newCardIdx>idx)G.newCardIdx--;
     G.selectedCard=-1;pushDiscard(c);
     if(c.power){
-      executePower(c,cur,function(){G.locked=false;olSync();});
-    } else {
-      G.playedCardThisTurn=true;showNotif(c.art+' '+c.name,'#449944');
+      executePower(c,cur,function(){G.locked=false;olPush();});
+    }else{
+      G.playedCardThisTurn=true;
       G.phase='draw';G.newCardIdx=-1;
-      nextTurn();olSync();G.locked=false;
+      nextTurn();olPush();G.locked=false;
     }
   }
   else if(a.t==='angel'){
     var hc={id:'hitman',name:'HITMAN',art:'🔫',type:'hit',power:false,uid:'hitman_ret'};
     G.deck.splice(a.pos,0,hc);
-    G.lastPow={id:'angel'};G.phase='draw';G.newCardIdx=-1;
+    G.lastPow={id:'angel',name:'ANIOŁ'};G.phase='draw';G.newCardIdx=-1;
     $id('hitman-ov').style.display='none';$id('angel-ov').style.display='none';
-    showNotif('😇 ANIOŁ RATUJE!','#ffff66');
-    nextTurn();olSync();
+    showNotif('😇 ANIOŁ RATUJE!','#ffff66');nextTurn();olPush();
   }
   else if(a.t==='die'){
     cur.alive=false;G.phase='draw';G.lastPow=null;
     $id('hitman-ov').style.display='none';
     showNotif('💀 WYELIMINOWANY!','#ff2222');
-    if(!checkWin())nextTurn();
-    olSync();
+    if(!checkWin())nextTurn();olPush();
   }
 }
 
-/* ── Guest sends action shorthand ── */
-function olAct(a){
-  if(G&&G.onlineMode&&!OL.isHost){
-    olSend({t:'act',a:a});
-  }
-}
-
-var G_ONLINE_GUESTNAME='Gracz';
-
-function olShowRoom(code,isHost,myName){
-  $id('online-ov').style.display='flex';
-  var oc=$id('online-content');
-  oc.innerHTML=
-    '<div class="slbl" style="font-size:10px;letter-spacing:2px">'+(isHost?'TWÓJ KOD POKOJU — WYŚLIJ ZNAJOMEMU':'ŁĄCZENIE Z POKOJEM')+'</div>'+
-    '<div id="ol-code-box" onclick="olCopy()" style="'+
-      'font-family:monospace;font-size:clamp(8px,1.6vw,11px);color:var(--gold2);'+
-      'word-break:break-all;padding:8px 10px;border:1px solid var(--gold);border-radius:6px;'+
-      'background:#1a0e0488;text-align:center;max-width:min(320px,88vw);cursor:pointer;'+
-      'line-height:1.5">'+
-      code+
-      '<br><span style="font-size:8px;color:#7a5a2a">tap aby skopiować</span>'+
-    '</div>'+
-    '<div id="ol-room-players" style="font-family:Cinzel,serif;font-size:12px;display:flex;flex-direction:column;gap:4px;min-height:32px;text-align:center">'+
-      '<div style="color:'+(isHost?'#44ff88':'#f5c842')+'">● '+myName+(isHost?' (Ty — host)':' (Ty — gość)')+'</div>'+
-    '</div>'+
-    '<div id="ol-status" style="font-family:IM Fell English,serif;font-size:12px;color:#c8a060;text-align:center;min-height:28px;padding:0 8px;line-height:1.6;margin-top:2px"></div>'+
-    (isHost?'<button id="ol-start-btn" class="mbtn pri" style="width:100%;display:none;margin-top:4px" onclick="olStartGame()">▶ Rozpocznij grę</button>':'');
-}
-
+/* ── HOST starts game ── */
 function olStartGame(){
   if(!OL.isHost)return;
-  var gName=G_ONLINE_GUESTNAME||'Gracz';
+  var gName=OL.guestName||'Gracz';
   var hName=OL.name;
-  // Build game
   CFG.hitman=1;
-  var safe=20;var b=Math.floor(safe/4),r=safe%4;
+  var safe=20,b=Math.floor(safe/4),r=safe%4;
   CFG.s1=b+(r>0?1:0);CFG.s2=b+(r>1?1:0);CFG.s3=b+(r>2?1:0);CFG.s4=b;
   CFG.shuffle=3;CFG.fake=2;CFG.angel=3;CFG.steal=2;CFG.give=2;CFG.cancel=2;
   CFG.peek=2;CFG.chain=1;CFG.addhit=1;CFG.reverse=2;CFG.copy=1;CFG.purge=1;CFG.double=1;CFG.bottom=2;
   var deck=buildDeck();
-  var s={hName:hName,gName:gName,deck:deck.map(function(c){return c.uid;})};
-  olSend({t:'start',s:s});
-  olStartAsHost(s);
-}
-
-function olStartAsHost(s){
+  // Tell guest to init their side
+  olSend({t:'init',hName:hName,gName:gName,
+    deck:deck.map(function(c){return{id:c.id,name:c.name,art:c.art,type:c.type,power:!!c.power,uid:c.uid};})
+  });
+  // Init host side
+  G=olMakeGame(hName,gName,deck);
   OL.pIdx=0;
-  var deck=olRebuildDeck(s.deck);
-  G={
-    players:[
-      {name:s.hName,isBot:false,hand:[],alive:true,char:cfgVals._playerChar||'ghost',personality:'human'},
-      {name:s.gName,isBot:false,hand:[],alive:true,char:'wolf',personality:'human'},
-    ],
-    deck:deck,discardPile:[],discard:0,cur:0,lastPow:null,over:false,
-    phase:'draw',locked:false,selectedCard:-1,drawsLeft:3,newCardIdx:-1,playedCardThisTurn:false,
-    direction:1,chainedCard:null,chainTurnsLeft:0,doubleTarget:-1,doublingTurn:false,
-    onlineMode:true
-  };
   $id('online-ov').style.display='none';
   $id('exit-btn').style.display='block';
   var jm=$id('jazz-man');if(jm)jm.style.display='block';
   render();
-  // Send initial state to guest
-  setTimeout(function(){olSync();},300);
+  // Push state to guest after short delay (give guest time to init)
+  setTimeout(olPush,500);
 }
 
-function olStartAsGuest(s){
-  OL.pIdx=1;
-  var deck=olRebuildDeck(s.deck);
-  G={
+// Also handle init on guest side (inside olRecv)
+var _olRecvOrig=null;
+(function(){
+  var _orig=olRecv;
+  olRecv=function(d){
+    if(d&&d.t==='init'&&!OL.isHost){
+      G=olMakeGame(d.hName,d.gName,d.deck);
+      OL.pIdx=1;
+      $id('online-ov').style.display='none';
+      $id('exit-btn').style.display='block';
+      var jm=$id('jazz-man');if(jm)jm.style.display='block';
+      render();
+      return;
+    }
+    _orig(d);
+  };
+})();
+
+function olMakeGame(hName,gName,deck){
+  return{
     players:[
-      {name:s.hName,isBot:false,hand:[],alive:true,char:'ghost',personality:'human'},
-      {name:s.gName||OL.name,isBot:false,hand:[],alive:true,char:'wolf',personality:'human'},
+      {name:hName,isBot:false,hand:[],alive:true,char:cfgVals._playerChar||'ghost',personality:'human'},
+      {name:gName,isBot:false,hand:[],alive:true,char:'wolf',personality:'human'},
     ],
     deck:deck,discardPile:[],discard:0,cur:0,lastPow:null,over:false,
-    phase:'draw',locked:false,selectedCard:-1,drawsLeft:3,newCardIdx:-1,playedCardThisTurn:false,
-    direction:1,chainedCard:null,chainTurnsLeft:0,doubleTarget:-1,doublingTurn:false,
-    onlineMode:true
+    phase:'draw',locked:false,selectedCard:-1,drawsLeft:3,newCardIdx:-1,
+    playedCardThisTurn:false,direction:1,chainedCard:null,chainTurnsLeft:0,
+    doubleTarget:-1,doublingTurn:false,onlineMode:true
   };
-  $id('online-ov').style.display='none';
-  $id('exit-btn').style.display='block';
-  var jm=$id('jazz-man');if(jm)jm.style.display='block';
-  render();
 }
 
-function olRebuildDeck(uids){
-  var tmp=buildDeck();
-  var map={};tmp.forEach(function(c){map[c.uid]=c;});
-  return (uids||[]).map(function(u){return map[u]||tmp[0];}).filter(Boolean);
+/* ── Lobby UI ── */
+function olShowLobby(code,isHost,myName){
+  $id('online-ov').style.display='flex';
+  $id('online-content').innerHTML=
+    '<div class="slbl" style="font-size:10px">'+(isHost?'TWÓJ KOD — SKOPIUJ I WYŚLIJ':'ŁĄCZENIE')+'</div>'+
+    '<div id="ol-cbox" onclick="olCopy()" style="'+
+      'font-size:clamp(8px,1.5vw,10px);word-break:break-all;color:#f5c842;'+
+      'padding:8px;border:1px solid var(--gold);border-radius:6px;'+
+      'background:#1a0e0488;text-align:center;cursor:pointer;max-width:min(320px,88vw);line-height:1.5">'+
+      code+'<br><span style="font-size:8px;color:#7a5a2a">kliknij aby skopiować</span>'+
+    '</div>'+
+    '<div id="ol-players" style="font-family:Cinzel,serif;font-size:12px;display:flex;flex-direction:column;gap:3px;text-align:center">'+
+      '<div style="color:'+(isHost?'#44ff88':'#f5c842')+'">● '+myName+(isHost?' (Ty)':' (Ty — gość)')+'</div>'+
+    '</div>'+
+    '<div id="ol-stat" style="font-size:12px;color:#c8a060;text-align:center;min-height:24px;font-family:IM Fell English,serif;line-height:1.5"></div>'+
+    (isHost?'<button id="ol-startbtn" class="mbtn pri" style="width:100%;display:none" onclick="olStartGame()">▶ Rozpocznij grę</button>':'');
+}
+
+function olCopy(){
+  if(!OL.code)return;
+  try{navigator.clipboard.writeText(OL.code).then(function(){olStat('✓ Skopiowano!','#44ff88');});}
+  catch(e){
+    // Fallback for mobile
+    var ta=document.createElement('textarea');ta.value=OL.code;
+    ta.style.cssText='position:fixed;top:0;left:0;opacity:0.01';
+    document.body.appendChild(ta);ta.focus();ta.select();
+    try{document.execCommand('copy');olStat('✓ Skopiowano!','#44ff88');}catch(e2){olStat('Skopiuj kod ręcznie','#888');}
+    document.body.removeChild(ta);
+  }
 }
 
 showMenu();
