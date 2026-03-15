@@ -1422,8 +1422,12 @@ function renderOpps(){
     'left:8%;top:clamp(106px,15.5vh,126px)',
     'right:8%;top:clamp(106px,15.5vh,126px)'
   ];
-  for(var idx=0;idx<Math.min(G.players.length-1,3);idx++){
-    var pi=idx+1,p=G.players[pi];
+  // Build list of opponent indices (everyone except myPIdx)
+  var myPIdx=G.onlineMode?ONLINE.myIdx:0;
+  var oppIndices=[];
+  for(var oi=0;oi<G.players.length;oi++)if(oi!==myPIdx)oppIndices.push(oi);
+  for(var idx=0;idx<Math.min(oppIndices.length,3);idx++){
+    var pi=oppIndices[idx],p=G.players[pi];
     var div=document.createElement('div');div.className='opp';div.style.cssText='position:absolute;'+pos[idx];
     var fc='opp-frame'+(pi===G.cur?' act':'')+(p.alive?'':' dead');
     div.innerHTML=
@@ -1590,7 +1594,10 @@ function renderHandAndButtons(){
   var hc=$id('hand-cards'),br=$id('btn-row');
   hc.innerHTML='';br.innerHTML='';
   if(!G||G.over)return;
-  var cur=G.players[G.cur],hp=G.players[0];
+  var cur=G.players[G.cur];
+  // In online mode show MY cards (myIdx), in offline show player[0]
+  var myPIdx = (G.onlineMode ? ONLINE.myIdx : 0);
+  var hp=G.players[myPIdx];
   if(hp&&!hp.isBot&&hp.alive){
     var html='';
     for(var i=0;i<hp.hand.length;i++){
@@ -1599,7 +1606,7 @@ function renderHandAndButtons(){
     }
     hc.innerHTML=html;
   }
-  if(!cur||cur.isBot||!cur.alive)return;
+  if(!cur||cur.alive===false)return;
   // Online: show "not your turn" message if it's opponent's turn
   if(G.onlineMode&&!isMyTurn()){
     br.innerHTML='<span class="phase-lbl" style="color:#7a5a2a;letter-spacing:2px">⏳ Tura: '+cur.name.toUpperCase()+'</span>';
@@ -1647,13 +1654,15 @@ function selectCard(idx){
     // optimistic local update for responsiveness
     G.selectedCard=newSel;
     if(G.phase==='draw'&&newSel>=0&&newSel!==G.newCardIdx){
-      var cc=cur.hand[newSel];if(cc&&cc.id!=='angel')G.phase='hand-play';
+      var cc=G.players[ONLINE.myIdx].hand[newSel];
+      if(cc&&cc.id!=='angel')G.phase='hand-play';
     }
     renderHandAndButtons();return;
   }
   G.selectedCard=newSel;
   if(G.phase==='draw'&&G.selectedCard>=0&&G.selectedCard!==G.newCardIdx){
-    var c=G.players[G.cur].hand[G.selectedCard];
+    var myP=G.onlineMode?ONLINE.myIdx:G.cur;
+    var c=G.players[myP].hand[G.selectedCard];
     if(c&&c.id!=='angel')G.phase='hand-play';
   }
   renderHandAndButtons();
@@ -2310,7 +2319,8 @@ function onlineHandleMessage(msg){
     G.newCardIdx=s.newCardIdx;G.playedCardThisTurn=s.playedCardThisTurn;
     G.direction=s.direction;G.chainedCard=s.chainedCard;G.chainTurnsLeft=s.chainTurnsLeft;
     G.doubleTarget=s.doubleTarget;G.doublingTurn=s.doublingTurn;
-    G.locked=false; // always unlock on guest side after sync
+    G.locked=false;
+    G.onlineMode=true;G.myIdx=1; // guest is always player 1
     // Handle special overlays
     if(s.over&&s.over!==false){
       $id('win-ov').style.display='flex';
@@ -2351,7 +2361,8 @@ function applyOnlineAction(action){
   else if(action.type==='select_card'){
     G.selectedCard=action.idx;
     if(G.phase==='draw'&&action.idx>=0&&action.idx!==G.newCardIdx){
-      var c2=cur.hand[action.idx];
+      var hIdx=action.idx>=0?action.idx:-1;
+      var c2=hIdx>=0&&hIdx<cur.hand.length?cur.hand[hIdx]:null;
       if(c2&&c2.id!=='angel')G.phase='hand-play';
     }
     onlineSyncState();
