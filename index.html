@@ -1712,7 +1712,7 @@ function humanDraw(){
   if(G.deck.length===0){showNotif('TALIA PUSTA!','#cc4444');return;}
   if(G.onlineMode&&!OL.isHost){olAct({t:'draw'});return;}
   G.locked=true;G.selectedCard=-1;
-  doDrawCard(function(){G.locked=false;olSync();});
+  doDrawCard(function(){G.locked=false;if(G.onlineMode&&OL.isHost)olSync();});
 }
 
 /* ================================================================
@@ -2094,7 +2094,9 @@ function nextTurn(){
   if(G.doubleTarget===G.cur&&!G.doublingTurn){
     G.doublingTurn=true;
     G.phase='draw';G.selectedCard=-1;G.drawsLeft=3;G.newCardIdx=-1;G.playedCardThisTurn=false;
-    render();if(isCurBot())setTimeout(botTurn,1500);return;
+    render();
+    if(G.onlineMode&&OL.isHost) olSync();
+    if(isCurBot())setTimeout(botTurn,1500);return;
   }
   G.doublingTurn=false;
   G.doubleTarget=-1; // reset after double turn completed
@@ -2106,6 +2108,8 @@ function nextTurn(){
   G.cur=next;G.phase='draw';G.selectedCard=-1;G.drawsLeft=3;G.newCardIdx=-1;
   G.playedCardThisTurn=false;
   render();
+  // Online: host must sync state whenever turn changes
+  if(G.onlineMode&&OL.isHost) olSync();
   if(isCurBot())setTimeout(botTurn,1500);
 }
 
@@ -2315,7 +2319,7 @@ function olApplyGuestAction(a){
   if(!cur||!cur.alive)return;
 
   if(a.t==='draw'){
-    if(G.phase!=='draw'||G.drawsLeft<=0)return;
+    if(G.phase!=='draw'||G.drawsLeft<=0){olSync();return;}
     if(G.deck.length===0){showNotif('TALIA PUSTA','#cc4444');olSync();return;}
     G.locked=true;
     doDrawCard(function(){G.locked=false;olSync();});
