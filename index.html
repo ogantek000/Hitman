@@ -1399,6 +1399,11 @@ function render(){
     h.innerHTML='<span class="h-your">YOUR </span><span class="h-name">'+cur.name.toUpperCase()+'</span><span class="h-turn"> TURN</span>';
   }
   renderOpps();renderHandAndButtons();
+  // Auto-sync to guest on every render when host
+  if(G&&G.onlineMode&&OL.isHost&&OL.conn&&OL.conn.open){
+    clearTimeout(render._syncTimer);
+    render._syncTimer=setTimeout(olSync,50);
+  }
 }
 function fanCardsHTML(n){
   if(n<=0)return'<div class="opp-hand-fan" style="height:clamp(34px,6.5vw,50px);width:clamp(54px,10vw,80px)"></div>';
@@ -1759,10 +1764,14 @@ function doDrawCard(cb){
   cur.hand.push(card);
   G.newCardIdx=newIdx;
   if(!cur.isBot){
-    // Auto-end if 0 draws left
     G.phase='draw';render();
     if(G.drawsLeft<=0){
-      setTimeout(function(){G.newCardIdx=-1;nextTurn();},600);
+      // Auto-end turn after drawing max cards
+      setTimeout(function(){
+        G.newCardIdx=-1;
+        nextTurn();
+        if(G.onlineMode&&OL.isHost) olSync();
+      },600);
     }
     if(cb)cb();
   } else {
@@ -2237,11 +2246,16 @@ function olSync(){
 }
 
 function olSerialize(){
+  // Deep copy arrays to avoid reference issues
+  var deckCopy=G.deck.map(function(c){return{id:c.id,name:c.name,art:c.art,type:c.type,power:c.power,uid:c.uid};});
+  var dpCopy=G.discardPile.map(function(c){return{id:c.id,name:c.name,art:c.art,type:c.type,power:c.power,uid:c.uid};});
   return{
     players:G.players.map(function(p){
-      return{name:p.name,isBot:p.isBot,hand:p.hand,alive:p.alive,char:p.char||'ghost',personality:p.personality||'human'};
+      return{name:p.name,isBot:p.isBot,
+        hand:p.hand.map(function(c){return{id:c.id,name:c.name,art:c.art,type:c.type,power:c.power,uid:c.uid};}),
+        alive:p.alive,char:p.char||'ghost',personality:p.personality||'human'};
     }),
-    deck:G.deck, discardPile:G.discardPile, discard:G.discard,
+    deck:deckCopy, discardPile:dpCopy, discard:G.discard,
     cur:G.cur, lastPow:G.lastPow, over:G.over,
     phase:G.phase, selectedCard:G.selectedCard, drawsLeft:G.drawsLeft,
     newCardIdx:G.newCardIdx, playedCardThisTurn:G.playedCardThisTurn,
@@ -2319,16 +2333,21 @@ function olApplyGuestAction(a){
   if(!cur||!cur.alive)return;
 
   if(a.t==='draw'){
-    if(G.phase!=='draw'||G.drawsLeft<=0){olSync();return;}
+    // Validate it's actually guest's turn and can draw
+    if(G.cur!==1){olSync();return;} // not guest's turn
+    if(G.phase!=='draw'){olSync();return;}
+    if(G.drawsLeft<=0){olSync();return;}
     if(G.deck.length===0){showNotif('TALIA PUSTA','#cc4444');olSync();return;}
     G.locked=true;
     doDrawCard(function(){G.locked=false;olSync();});
   }
   else if(a.t==='end'){
+    if(G.cur!==1){olSync();return;}
     if(G.drawsLeft===3&&!G.playedCardThisTurn){olSync();return;}
     G.selectedCard=-1;G.newCardIdx=-1;
     if(G.phase==='hand-play')G.phase='draw';
-    nextTurn();olSync();
+    nextTurn();
+    // olSync happens inside nextTurn via render auto-sync
   }
   else if(a.t==='sel'){
     G.selectedCard=a.i;
