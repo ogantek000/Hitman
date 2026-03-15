@@ -947,6 +947,9 @@ body,html{width:100%;height:100%;overflow:hidden;background:#0c0704;font-family:
   <!-- NOTIF -->
   <div id="notif"></div>
 
+  <!-- DEBUG PANEL - remove after testing -->
+  <div id="dbg" style="position:fixed;bottom:0;left:0;right:0;z-index:999;background:#000000cc;color:#0f0;font-family:monospace;font-size:11px;padding:4px 8px;max-height:80px;overflow-y:auto;pointer-events:none;line-height:1.4"></div>
+
   <!-- WINNER -->
   <div class="modal-bg" id="win-ov" style="z-index:70">
     <div class="modal-title" style="color:var(--gold2)">ZWYCIĘZCA</div>
@@ -1366,8 +1369,21 @@ function startGame(){
 /* ================================================================
    RENDER
 ================================================================ */
+function dbg(msg){
+  var d=document.getElementById('dbg');
+  if(!d)return;
+  var t=new Date().toLocaleTimeString('pl',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  d.innerHTML='<b>['+t+']</b> '+msg+'<br>'+d.innerHTML;
+  // keep only last 5 lines
+  var lines=d.innerHTML.split('<br>');
+  if(lines.length>5)d.innerHTML=lines.slice(0,5).join('<br>');
+}
 function render(){
   if(!G)return;
+  var myP=G.onlineMode?OL.pIdx:0;
+  var hp=G.players[myP];
+  var hlen=hp?hp.hand.length:0;
+  dbg('render | cur='+G.cur+' phase='+G.phase+' myPIdx='+myP+' myHand='+hlen+' locked='+G.locked+' ol='+G.onlineMode+' isHost='+OL.isHost);
   var hits=0;for(var i=0;i<G.deck.length;i++)if(G.deck[i].id==='hitman')hits++;
   var dpct=G.deck.length?Math.round(hits/G.deck.length*100):0;
   var alive=0;for(var i=0;i<G.players.length;i++)if(G.players[i].alive)alive++;
@@ -1707,6 +1723,7 @@ function endTurnEarly(){
 ================================================================ */
 function humanDraw(){
   if(!G||G.over||G.locked)return;
+  dbg('humanDraw | phase='+G.phase+' drawsLeft='+G.drawsLeft+' locked='+G.locked+' isHost='+OL.isHost);
   if(G.phase!=='draw'||G.drawsLeft<=0)return;
   if(G.deck.length===0){showNotif('TALIA PUSTA!','#cc4444');return;}
   // Online: guest sends action to host; host runs locally
@@ -2222,6 +2239,7 @@ function olSend(msg){
 /* ── HOST pushes full state to guest after every change ── */
 function olPush(){
   if(!OL.isHost||!G)return;
+  dbg('olPush | cur='+G.cur+' p0hand='+G.players[0].hand.length+' p1hand='+(G.players[1]?G.players[1].hand.length:0));
   olSend({t:'state', s:{
     pl:G.players.map(function(p){return{
       name:p.name,hand:p.hand.map(function(c){return{id:c.id,name:c.name,art:c.art,type:c.type,power:!!c.power,uid:c.uid};}),
@@ -2245,6 +2263,7 @@ function olPush(){
 /* ── incoming data ── */
 function olRecv(d){
   if(!d||!d.t)return;
+  dbg('olRecv t='+d.t+' isHost='+OL.isHost);
 
   /* Ping/pong to verify connection */
   if(d.t==='ping'&&!OL.isHost){
@@ -2293,6 +2312,7 @@ function olRecv(d){
 /* ── Guest applies state received from host ── */
 function olApplyState(s){
   if(!G||!s)return;
+  dbg('olApplyState | cur='+s.cur+' phase='+s.phase+' p0h='+(s.pl&&s.pl[0]?s.pl[0].hand.length:'?')+' p1h='+(s.pl&&s.pl[1]?s.pl[1].hand.length:'?')+' myPIdx='+OL.pIdx);
   // Update players (hands, alive)
   if(s.pl){
     for(var i=0;i<s.pl.length&&i<G.players.length;i++){
