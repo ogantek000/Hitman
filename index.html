@@ -2165,9 +2165,16 @@ function olCreate(){
         olStat('Wyślij kod znajomemu i czekaj','#88aaff');
       });
       OL.peer.on('connection',function(conn){
+        // Close any old connection first
+        if(OL.conn&&OL.conn!==conn){try{OL.conn.close();}catch(e){}}
         OL.conn=conn;
+        // Set up data handler FIRST so we don't miss early messages
         conn.on('data',function(d){olRecv(d);});
-        conn.on('open',function(){olStat('Ktoś się łączy…','#ffcc44');});
+        conn.on('open',function(){
+          olStat('Gość połączony, czekam na dane…','#ffcc44');
+          // Host sends a ping so guest knows to re-send hi if needed
+          setTimeout(function(){olSend({t:'ping'});},200);
+        });
         conn.on('close',function(){if(G&&!G.over)showNotif('ROZŁĄCZONO','#cc4444');});
       });
       OL.peer.on('error',function(e){olStat('Błąd: '+e.type+'. Odśwież stronę.','#cc4444');});
@@ -2190,7 +2197,12 @@ function olJoin(){
         OL.conn=OL.peer.connect(code,{reliable:true,serialization:'json'});
         OL.conn.on('open',function(){
           olStat('🟢 Połączono! Czekaj na start hosta…','#44ff88');
+          // Send hi immediately and also retry every 2s until host acks
           olSend({t:'hi',name:name});
+          OL._hiRetry=setInterval(function(){
+            if(OL._hiAcked){clearInterval(OL._hiRetry);return;}
+            olSend({t:'hi',name:name});
+          },2000);
         });
         OL.conn.on('data',function(d){olRecv(d);});
         OL.conn.on('close',function(){if(G&&!G.over)showNotif('HOST ROZŁĄCZYŁ SIĘ','#cc4444');});
@@ -2234,6 +2246,12 @@ function olPush(){
 function olRecv(d){
   if(!d||!d.t)return;
 
+  /* Ping/pong to verify connection */
+  if(d.t==='ping'&&!OL.isHost){
+    olSend({t:'hi',name:OL.name}); // re-send hi in case it was missed
+    return;
+  }
+
   /* Host receives guest's hi message */
   if(d.t==='hi'&&OL.isHost){
     OL.guestName=d.name;
@@ -2249,11 +2267,13 @@ function olRecv(d){
 
   /* Guest receives confirmation */
   if(d.t==='ok'&&!OL.isHost){
+    OL._hiAcked=true; // stop retrying hi
+    if(OL._hiRetry){clearInterval(OL._hiRetry);}
     var rp=$id('ol-players');
     if(rp)rp.innerHTML=
       '<div style="color:#f5c842;font-family:Cinzel,serif;font-size:12px">● '+d.host+' (host)</div>'+
       '<div style="color:#44ff88;font-family:Cinzel,serif;font-size:12px">● '+d.guest+' (Ty)</div>';
-    olStat('Czekaj na start hosta…','#44ff88');
+    olStat('✅ Połączono! Czekaj na start hosta…','#44ff88');
     return;
   }
 
