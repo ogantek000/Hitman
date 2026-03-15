@@ -1617,6 +1617,7 @@ function renderHandAndButtons(){
   // Who am I?
   var myPIdx = G.onlineMode ? OL.pIdx : 0;
   var isMyTurnNow = G.cur === myPIdx;
+  dbg('RHB | myPIdx='+myPIdx+' cur='+G.cur+' myTurn='+isMyTurnNow+' phase='+G.phase+' locked='+G.locked+' drawsLeft='+G.drawsLeft);
 
   // Always show MY hand
   var hp = G.players[myPIdx];
