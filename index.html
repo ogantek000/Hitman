@@ -2146,48 +2146,72 @@ function buildOnlineUI(){
     '<button class="mbtn pri" style="width:100%" onclick="olJoin()">🔗 Dołącz do pokoju</button>'+
     '<div id="ol-status" style="font-family:IM Fell English,serif;font-size:12px;color:#c8a060;text-align:center;min-height:32px;margin-top:6px;line-height:1.6;padding:0 8px"></div>';
 }
-function olStatus(msg,col){var s=$id('ol-status');if(s){s.innerHTML=msg;s.style.color=col||'#c8a060';}}
+function olStatus(msg,col){
+  // ol-status lives inside online-content (created by olShowRoom)
+  var s=$id('ol-status');
+  if(s){s.innerHTML=msg;s.style.color=col||'#c8a060';}
+  // Also update online-status if it exists (buildOnlineUI div)
+  var s2=$id('online-status');
+  if(s2&&s2!==s){s2.innerHTML=msg;s2.style.color=col||'#c8a060';}
+}
 
 function olCreate(){
   var name=($id('ol-name')&&$id('ol-name').value.trim())||'Host';
   OL.name=name;OL.isHost=true;OL.pIdx=0;
-  olStatus('Łączenie...','#88aaff');
+  // Show waiting room immediately with loading state
+  olShowRoom('...generowanie kodu...',true,name);
+  olStatus('Ładowanie PeerJS...','#88aaff');
   loadPeerJS(function(){
-    OL.peer=new Peer(undefined,{debug:0});
-    OL.peer.on('open',function(id){
-      OL.code=id;
-      olStatus('<b style="font-family:Cinzel,serif;font-size:10px;word-break:break-all;color:#f5c842">'+id+'</b><br><span style="font-size:9px;color:#7a5a2a;cursor:pointer" onclick="olCopy()">kliknij aby skopiować ↑</span>','#c8a060');
-      olShowRoom(id,true,name);
-    });
-    OL.peer.on('connection',function(conn){
-      OL.conn=conn;
-      conn.on('data',function(d){olOnData(d);});
-      conn.on('close',function(){if(G&&!G.over)showNotif('ROZŁĄCZONO','#cc4444');});
-    });
-    OL.peer.on('error',function(e){olStatus('Błąd: '+e.type,'#cc4444');});
+    olStatus('Tworzenie pokoju...','#88aaff');
+    try{
+      OL.peer=new Peer(undefined,{debug:0});
+      OL.peer.on('open',function(id){
+        OL.code=id;
+        // Update the code box
+        var cb=$id('ol-code-box');
+        if(cb)cb.innerHTML=id+'<br><span style="font-size:8px;color:#7a5a2a">tap aby skopiować</span>';
+        olStatus('Wyślij kod znajomemu i czekaj...','#88aaff');
+      });
+      OL.peer.on('connection',function(conn){
+        OL.conn=conn;
+        conn.on('open',function(){
+          olStatus('🟢 Ktoś dołącza...','#ffcc44');
+        });
+        conn.on('data',function(d){olOnData(d);});
+        conn.on('close',function(){if(G&&!G.over)showNotif('ROZŁĄCZONO','#cc4444');});
+      });
+      OL.peer.on('error',function(e){olStatus('Błąd: '+e.type+'<br>Odśwież stronę i spróbuj ponownie.','#cc4444');});
+    }catch(e){olStatus('Błąd: '+e,'#cc4444');}
   });
 }
 
 function olJoin(){
   var name=($id('ol-name')&&$id('ol-name').value.trim())||'Gracz';
   var code=($id('ol-code')&&$id('ol-code').value.trim())||'';
-  if(!code){olStatus('Wklej kod!','#cc4444');return;}
+  if(!code){olStatus('Wklej kod pokoju!','#cc4444');return;}
   OL.name=name;OL.isHost=false;OL.pIdx=1;OL.code=code;
-  olStatus('Łączenie...','#88aaff');
+  // Show room screen immediately
+  olShowRoom(code,false,name);
+  olStatus('Ładowanie PeerJS...','#88aaff');
   loadPeerJS(function(){
-    OL.peer=new Peer(undefined,{debug:0});
-    OL.peer.on('open',function(){
-      OL.conn=OL.peer.connect(code,{reliable:true,serialization:'json'});
-      OL.conn.on('open',function(){
-        olStatus('🟢 Połączono! Czekaj na start...','#44ff88');
-        olSend({t:'join',name:name});
-        olShowRoom(code,false,name);
+    olStatus('Łączenie z hostem...','#88aaff');
+    try{
+      OL.peer=new Peer(undefined,{debug:0});
+      OL.peer.on('open',function(){
+        olStatus('Nawiązywanie połączenia...','#88aaff');
+        OL.conn=OL.peer.connect(code,{reliable:true,serialization:'json'});
+        OL.conn.on('open',function(){
+          olStatus('🟢 Połączono! Czekaj na start hosta...','#44ff88');
+          olSend({t:'join',name:name});
+        });
+        OL.conn.on('data',function(d){olOnData(d);});
+        OL.conn.on('close',function(){if(G&&!G.over)showNotif('HOST ROZŁĄCZYŁ SIĘ','#cc4444');});
+        OL.conn.on('error',function(e){olStatus('Błąd połączenia: '+e,'#cc4444');});
       });
-      OL.conn.on('data',function(d){olOnData(d);});
-      OL.conn.on('close',function(){if(G&&!G.over)showNotif('HOST ROZŁĄCZYŁ SIĘ','#cc4444');});
-      OL.conn.on('error',function(){olStatus('Błąd połączenia','#cc4444');});
-    });
-    OL.peer.on('error',function(e){olStatus('Nie można połączyć.<br>Błąd: '+e.type,'#cc4444');});
+      OL.peer.on('error',function(e){
+        olStatus('Nie można połączyć.<br>Sprawdź kod i internet.<br><small>'+e.type+'</small>','#cc4444');
+      });
+    }catch(e){olStatus('Błąd: '+e,'#cc4444');}
   });
 }
 
@@ -2355,14 +2379,22 @@ var G_ONLINE_GUESTNAME='Gracz';
 
 function olShowRoom(code,isHost,myName){
   $id('online-ov').style.display='flex';
-  $id('online-content').innerHTML=
-    '<div class="slbl" style="font-size:10px;letter-spacing:2px">'+(isHost?'TWÓJ KOD POKOJU':'POŁĄCZONO Z')+'</div>'+
-    '<div id="ol-code-box" style="font-family:monospace;font-size:clamp(9px,1.8vw,11px);color:var(--gold2);letter-spacing:0px;word-break:break-all;padding:8px 10px;border:1px solid var(--gold);border-radius:6px;background:#1a0e0488;text-align:center;max-width:min(320px,88vw);cursor:pointer" onclick="olCopy()">'+code+'<br><span style="font-size:8px;color:#7a5a2a">tap aby skopiować</span></div>'+
-    '<div id="ol-room-players" style="font-family:Cinzel,serif;font-size:12px;display:flex;flex-direction:column;gap:4px;min-height:36px;text-align:center">'+
+  var oc=$id('online-content');
+  oc.innerHTML=
+    '<div class="slbl" style="font-size:10px;letter-spacing:2px">'+(isHost?'TWÓJ KOD POKOJU — WYŚLIJ ZNAJOMEMU':'ŁĄCZENIE Z POKOJEM')+'</div>'+
+    '<div id="ol-code-box" onclick="olCopy()" style="'+
+      'font-family:monospace;font-size:clamp(8px,1.6vw,11px);color:var(--gold2);'+
+      'word-break:break-all;padding:8px 10px;border:1px solid var(--gold);border-radius:6px;'+
+      'background:#1a0e0488;text-align:center;max-width:min(320px,88vw);cursor:pointer;'+
+      'line-height:1.5">'+
+      code+
+      '<br><span style="font-size:8px;color:#7a5a2a">tap aby skopiować</span>'+
+    '</div>'+
+    '<div id="ol-room-players" style="font-family:Cinzel,serif;font-size:12px;display:flex;flex-direction:column;gap:4px;min-height:32px;text-align:center">'+
       '<div style="color:'+(isHost?'#44ff88':'#f5c842')+'">● '+myName+(isHost?' (Ty — host)':' (Ty — gość)')+'</div>'+
     '</div>'+
-    '<div id="ol-status" style="font-family:IM Fell English,serif;font-size:12px;color:#c8a060;text-align:center;min-height:24px;padding:0 8px;line-height:1.5"></div>'+
-    (isHost?'<button id="ol-start-btn" class="mbtn pri" style="width:100%;display:none" onclick="olStartGame()">▶ Rozpocznij grę</button>':'');
+    '<div id="ol-status" style="font-family:IM Fell English,serif;font-size:12px;color:#c8a060;text-align:center;min-height:28px;padding:0 8px;line-height:1.6;margin-top:2px"></div>'+
+    (isHost?'<button id="ol-start-btn" class="mbtn pri" style="width:100%;display:none;margin-top:4px" onclick="olStartGame()">▶ Rozpocznij grę</button>':'');
 }
 
 function olStartGame(){
