@@ -19,120 +19,165 @@ body,html{width:100%;height:100%;overflow:hidden;background:#0c0704;font-family:
 
 #app{width:100%;height:100dvh;min-height:520px;position:relative;overflow:hidden}
 
-/* ── RECORD SHELF ── */
-#record-shelf{
-  position:absolute;left:0;top:clamp(48px,8vh,80px);z-index:4;
-  width:clamp(52px,9vw,76px);
-  display:flex;flex-direction:column;align-items:center;gap:0;
-}
-#shelf-board-top,#shelf-board-mid,#shelf-board-bot{
-  width:100%;height:clamp(5px,1vh,8px);
-  background:linear-gradient(180deg,#7a4a18,#4a2a08,#5a3410);
-  border-right:2px solid #3a1a04;
-  box-shadow:2px 2px 6px #00000077;
-  position:relative;z-index:2;
-}
-.shelf-section{
-  width:100%;display:flex;flex-direction:column;align-items:center;
-  gap:2px;padding:4px 4px;
-  background:linear-gradient(90deg,#1a0e06,#0c0804);
-  border-right:2px solid #2a1408;
-}
-.album{
-  width:clamp(40px,7vw,58px);height:clamp(40px,7vw,58px);
-  border-radius:2px;overflow:hidden;flex-shrink:0;
-  box-shadow:1px 2px 6px #00000099,inset 0 0 0 1px #ffffff11;
-  position:relative;
-}
-.album svg{width:100%;height:100%;display:block}
-
-/* ── END RECORD SHELF ── */
-
 /* ── ROOM BACKGROUND ── */
 #room-bg{
   position:absolute;inset:0;z-index:0;
   background:
-    radial-gradient(ellipse 100% 50% at 50% -10%, #3d1a06 0%, transparent 60%),
-    radial-gradient(ellipse 60% 40% at 20% 60%, #1a0d04 0%, transparent 50%),
-    radial-gradient(ellipse 60% 40% at 80% 60%, #1a0d04 0%, transparent 50%),
-    #0c0704;
+    radial-gradient(ellipse 110% 60% at 50% -5%, #3d2010 0%, #1a0c06 50%, #0c0602 100%);
 }
-/* brick wall texture */
+
+/* BRICK WALL — multi-layered realistic */
 #wall{
   position:absolute;top:0;left:0;right:0;height:46%;z-index:1;
-  background-color:#2a1208;
+  background-color:#2e1508;
   background-image:
+    /* mortar lines horizontal */
     repeating-linear-gradient(
       0deg,
-      transparent 0px, transparent 19px,
-      rgba(0,0,0,.5) 19px, rgba(0,0,0,.5) 21px
+      transparent 0px, transparent 18px,
+      rgba(0,0,0,.55) 18px, rgba(0,0,0,.55) 20px
     ),
+    /* mortar lines vertical */
     repeating-linear-gradient(
       90deg,
-      transparent 0px, transparent 41px,
-      rgba(0,0,0,.35) 41px, rgba(0,0,0,.35) 43px
-    );
-  mask-image:linear-gradient(to bottom, black 55%, transparent 100%);
-  -webkit-mask-image:linear-gradient(to bottom, black 55%, transparent 100%);
-  box-shadow:inset 0 -20px 40px #0c070499;
-}
-/* offset every other brick row */
-#wall::after{
-  content:'';position:absolute;inset:0;
-  background-image:repeating-linear-gradient(
-    0deg,
-    transparent 0px, transparent 9px,
-    rgba(0,0,0,.18) 9px, rgba(0,0,0,.18) 10px,
-    transparent 10px, transparent 29px,
-    rgba(0,0,0,.18) 29px, rgba(0,0,0,.18) 30px
-  ),
-  repeating-linear-gradient(
-    90deg,
-    transparent 0px, transparent 20px,
-    rgba(255,255,255,.03) 20px, rgba(255,255,255,.03) 21px,
-    transparent 21px, transparent 63px,
-    rgba(255,255,255,.03) 63px, rgba(255,255,255,.03) 64px
-  );
-  mask-image:inherit;-webkit-mask-image:inherit;
-}
-#wall-lamp{
-  position:absolute;top:0;left:50%;transform:translateX(-50%);z-index:2;
-  width:80px;height:30px;
-  background:radial-gradient(ellipse at 50% 0%, #f5c84288 0%, transparent 80%);
-}
-
-/* wall trim / wainscoting */
-#wainscot{
-  position:absolute;top:43%;left:0;right:0;z-index:2;
-  height:clamp(20px,4vh,32px);
-  background:linear-gradient(180deg,var(--wood3) 0%,var(--wood) 40%,var(--wood2) 50%,var(--wood) 60%,var(--wood3) 100%);
-  box-shadow:0 4px 16px #00000077, inset 0 1px 0 #c8921a44, inset 0 -1px 0 #00000066;
-}
-#wainscot::before{content:'';position:absolute;top:2px;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,#c8921a88,transparent)}
-#wainscot::after{content:'';position:absolute;bottom:2px;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,#c8921a55,transparent)}
-
-/* floor */
-#floor{
-  position:absolute;bottom:0;left:0;right:0;z-index:1;
-  height:58%;
-  background:
+      transparent 0px, transparent 38px,
+      rgba(0,0,0,.4) 38px, rgba(0,0,0,.4) 40px
+    ),
+    /* brick color variation */
     repeating-linear-gradient(
-      88deg,
-      #1a0e06 0px, #1a0e06 59px,
-      #160c05 59px, #160c05 60px,
-      #1e1008 60px, #1e1008 119px,
-      #160c05 119px, #160c05 120px
+      160deg,
+      transparent 0px, transparent 15px,
+      rgba(80,20,0,.08) 15px, rgba(80,20,0,.08) 30px,
+      transparent 30px, transparent 45px,
+      rgba(0,0,0,.06) 45px, rgba(0,0,0,.06) 60px
+    );
+  mask-image:linear-gradient(to bottom, black 50%, transparent 100%);
+  -webkit-mask-image:linear-gradient(to bottom, black 50%, transparent 100%);
+  box-shadow:inset 0 -30px 50px #0c060288;
+}
+/* offset bricks second row */
+#wall::before{
+  content:'';position:absolute;inset:0;
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0px, transparent 18px,
+      rgba(0,0,0,.22) 18px, rgba(0,0,0,.22) 20px,
+      transparent 20px, transparent 57px,
+      rgba(0,0,0,.22) 57px, rgba(0,0,0,.22) 59px
+    );
+  /* Only show on alternating rows */
+  mask-image:
+    repeating-linear-gradient(
+      0deg,
+      transparent 0px, transparent 18px,
+      black 18px, black 38px,
+      transparent 38px, transparent 56px
+    );
+  -webkit-mask-image:
+    repeating-linear-gradient(
+      0deg,
+      transparent 0px, transparent 18px,
+      black 18px, black 38px,
+      transparent 38px, transparent 56px
     );
   opacity:.7;
+}
+/* subtle brick surface texture and highlights */
+#wall::after{
+  content:'';position:absolute;inset:0;
+  background-image:
+    radial-gradient(ellipse 60% 80% at 50% 20%, #6a2a0c0a 0%, transparent 70%),
+    repeating-linear-gradient(
+      92deg,
+      rgba(255,200,150,.015) 0, rgba(255,200,150,.015) 2px,
+      transparent 2px, transparent 8px
+    );
+  mask-image:inherit;-webkit-mask-image:inherit;
+}
+/* overhead lamp cone */
+#wall-lamp{
+  position:absolute;top:0;left:50%;transform:translateX(-50%);z-index:2;
+  width:clamp(120px,22vw,200px);height:clamp(60px,12vh,100px);
+  background:
+    radial-gradient(ellipse 80% 100% at 50% 0%,
+      #f5c84222 0%, #f5c84211 30%, transparent 70%);
+  pointer-events:none;
+}
+
+/* WAINSCOTING — dark wood panels */
+#wainscot{
+  position:absolute;top:44%;left:0;right:0;z-index:2;
+  height:clamp(18px,3.5vh,28px);
+  background:
+    linear-gradient(180deg,
+      #1a0904 0%,#3a1a08 15%,
+      #5a3010 40%,#6a3a14 50%,
+      #5a3010 60%,#3a1a08 85%,
+      #1a0904 100%);
+  box-shadow:
+    0 4px 20px #00000088,
+    inset 0 1px 0 #c8921a55,
+    inset 0 -1px 0 #00000077;
+}
+#wainscot::before{
+  content:'';position:absolute;top:3px;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent 0%,#c8921a77 20%,#f5c84299 50%,#c8921a77 80%,transparent 100%);
+}
+#wainscot::after{
+  content:'';position:absolute;bottom:3px;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent 0%,#c8921a44 20%,#d4a01766 50%,#c8921a44 80%,transparent 100%);
+}
+
+/* FLOOR — hardwood planks perspective */
+#floor{
+  position:absolute;bottom:0;left:0;right:0;z-index:1;
+  height:57%;
+  background:
+    /* plank grain lines */
+    repeating-linear-gradient(
+      90deg,
+      #180b04 0px, #180b04 1px,
+      transparent 1px, transparent 58px,
+      #140904 58px, #140904 60px,
+      transparent 60px, transparent 118px,
+      #1a0c05 118px, #1a0c05 120px,
+      transparent 120px, transparent 178px
+    ),
+    /* warm base color with depth */
+    linear-gradient(0deg,
+      #2a1408 0%,#1e0e06 40%,#160b04 70%,#100804 100%);
+  opacity:.88;
+}
+/* floor specular shine */
+#floor::after{
+  content:'';position:absolute;inset:0;
+  background:
+    linear-gradient(180deg,
+      transparent 0%,
+      rgba(255,200,100,.04) 30%,
+      rgba(255,200,100,.02) 60%,
+      transparent 100%),
+    radial-gradient(ellipse 100% 30% at 50% 0%,rgba(255,180,80,.06) 0%,transparent 60%);
 }
 
 /* ── AMBIENT LIGHT ── */
 #ambient{
   position:absolute;inset:0;z-index:3;pointer-events:none;
   background:
-    radial-gradient(ellipse 70% 30% at 50% 48%, #f5c84208 0%, transparent 70%),
-    radial-gradient(ellipse 40% 20% at 20% 80%, #2a100644 0%, transparent 50%),
-    radial-gradient(ellipse 40% 20% at 80% 80%, #2a100644 0%, transparent 50%);
+    /* lamp cone through space */
+    radial-gradient(ellipse 60% 40% at 50% 46%,
+      rgba(245,200,66,.06) 0%,
+      rgba(245,200,66,.02) 40%,
+      transparent 70%),
+    /* vignette */
+    radial-gradient(ellipse 100% 100% at 50% 50%,
+      transparent 40%,
+      rgba(0,0,0,.35) 100%),
+    /* side shadows */
+    linear-gradient(90deg,
+      rgba(0,0,0,.4) 0%,transparent 15%,
+      transparent 85%,rgba(0,0,0,.4) 100%);
 }
 
 /* ── TABLE ── */
@@ -143,28 +188,48 @@ body,html{width:100%;height:100%;overflow:hidden;background:#0c0704;font-family:
 }
 #table-outer{
   width:100%;height:100%;border-radius:50%;
-  background:linear-gradient(160deg,var(--wood2),var(--wood3),var(--wood));
-  padding:10px;
+  background:
+    radial-gradient(ellipse 70% 50% at 50% 30%,#8a5020 0%,#5a2e08 50%,#3a1a04 100%);
+  padding:11px;
   box-shadow:
-    0 24px 60px #00000088,
-    0 8px 24px #00000066,
-    inset 0 2px 0 #c8921a66,
-    inset 0 -2px 4px #00000088;
+    0 30px 80px #00000099,
+    0 10px 30px #00000077,
+    inset 0 3px 0 #c8921a55,
+    inset 0 -3px 8px #00000099;
+  position:relative;overflow:hidden;
+}
+#table-outer::before{
+  content:'';position:absolute;inset:0;border-radius:50%;
+  background:
+    repeating-linear-gradient(
+      75deg,
+      transparent 0px, transparent 7px,
+      rgba(0,0,0,.07) 7px, rgba(0,0,0,.07) 8px
+    );
+  pointer-events:none;
 }
 #table-felt{
   width:100%;height:100%;border-radius:50%;
   background:
-    radial-gradient(ellipse 80% 90% at 50% 30%, var(--felt-light), var(--felt-dark));
+    radial-gradient(ellipse 85% 75% at 42% 30%,#2a8030 0%,#1d6625 30%,#0f4015 65%,#082c0c 100%);
   position:relative;
-  box-shadow:inset 0 4px 20px #00000066, inset 0 0 60px #00000044;
+  box-shadow:
+    inset 0 8px 28px #00000088,
+    inset 0 0 90px #00000055,
+    inset 5px 5px 25px #00000033;
 }
-#table-felt::before{content:'';position:absolute;inset:8px;border-radius:50%;border:1px solid #2a9a2a22;pointer-events:none}
-#table-felt::after{content:'';position:absolute;inset:18px;border-radius:50%;border:1px solid #2a9a2a14;pointer-events:none}
-/* felt texture */
+#table-felt::before{content:'';position:absolute;inset:10px;border-radius:50%;border:1px solid rgba(80,200,80,.1);pointer-events:none}
+#table-felt::after{content:'';position:absolute;inset:22px;border-radius:50%;border:1px solid rgba(80,200,80,.06);pointer-events:none}
+/* felt micro-texture */
 #table-texture{
   position:absolute;inset:0;border-radius:50%;overflow:hidden;pointer-events:none;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Ccircle cx='1' cy='1' r='.5' fill='%23ffffff06'/%3E%3C/svg%3E");
-  background-size:4px 4px;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='5' height='5'%3E%3Ccircle cx='.8' cy='.8' r='.5' fill='%23ffffff05'/%3E%3Ccircle cx='3.3' cy='3.3' r='.4' fill='%2300000007'/%3E%3C/svg%3E");
+  background-size:5px 5px;
+}
+#table-texture::after{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 55% 35% at 38% 22%,rgba(255,255,190,.045) 0%,transparent 55%);
 }
 
 /* ── PILES ── */
@@ -302,7 +367,37 @@ body,html{width:100%;height:100%;overflow:hidden;background:#0c0704;font-family:
   border:1px solid #7a3a0e;display:inline-block;margin-right:-5px;
   box-shadow:1px 1px 2px #00000066;
 }
-
+/* Fan of face-down cards for bot hand */
+.opp-hand-fan{
+  position:relative;
+  height:clamp(34px,6.5vw,50px);
+  width:clamp(54px,10vw,80px);
+  flex-shrink:0;
+}
+.fan-card{
+  position:absolute;
+  width:clamp(22px,4vw,30px);
+  height:clamp(34px,6.5vw,50px);
+  border-radius:4px;
+  background:linear-gradient(160deg,#2d1506 0%,#1a0c04 50%,#2d1506 100%);
+  border:1.5px solid #8a4a0e;
+  box-shadow:1px 2px 6px #000000aa,inset 0 1px 0 #c8921a11;
+  transform-origin:bottom center;
+  left:50%;margin-left:clamp(-11px,-2vw,-15px);
+  overflow:hidden;
+}
+.fan-card::before{
+  content:'';position:absolute;inset:3px;border-radius:2px;
+  border:1px solid #7a3a0a22;
+  background:
+    repeating-linear-gradient(45deg,transparent 0,transparent 3px,#c8921a08 3px,#c8921a08 4px);
+}
+.fan-card .fc-diamond{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(45deg);
+  width:clamp(8px,1.5vw,12px);height:clamp(8px,1.5vw,12px);
+  border:1px solid #8a4a0a33;
+  background:radial-gradient(circle,#c8921a18,transparent 70%);
+}
 /* ── ACTION ZONE ── */
 #action-zone{
   position:absolute;bottom:0;left:0;right:0;z-index:20;
@@ -467,11 +562,7 @@ body,html{width:100%;height:100%;overflow:hidden;background:#0c0704;font-family:
   color:#7a5a2a;letter-spacing:1.5px;text-align:center;
   text-shadow:0 1px 2px #000;
 }
-.draws-lbl{
-  font-family:'Cinzel',serif;font-size:clamp(9px,2vw,12px);
-  color:#88aadd;letter-spacing:1px;
-  text-shadow:0 1px 2px #000;
-}
+
 
 /* ── OVERLAYS ── */
 .modal-bg{
@@ -620,155 +711,6 @@ body,html{width:100%;height:100%;overflow:hidden;background:#0c0704;font-family:
   <div id="floor"></div>
   <div id="ambient"></div>
 
-  <!-- RECORD SHELF -->
-  <div id="record-shelf">
-    <div id="shelf-board-top"></div>
-    <div class="shelf-section">
-      <!-- Jim Legacy - Black British Music -->
-      <div class="album" title="Jim Legacy – Black British Music">
-        <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
-          <rect width="60" height="60" fill="#0a0a14"/>
-          <rect width="60" height="60" fill="url(#jl_bg)"/>
-          <defs>
-            <linearGradient id="jl_bg" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#0a0a1e"/>
-              <stop offset="100%" stop-color="#1a0a2a"/>
-            </linearGradient>
-          </defs>
-          <!-- vinyl record shape -->
-          <circle cx="30" cy="30" r="26" fill="#111" stroke="#333" stroke-width="0.5"/>
-          <circle cx="30" cy="30" r="20" fill="#0a0a0a" stroke="#222" stroke-width="0.3"/>
-          <circle cx="30" cy="30" r="14" fill="#151515"/>
-          <circle cx="30" cy="30" r="4" fill="#cc2244"/>
-          <circle cx="30" cy="30" r="2" fill="#880022"/>
-          <!-- text area -->
-          <rect x="8" y="22" width="20" height="16" rx="1" fill="#cc224488"/>
-          <text x="18" y="30" text-anchor="middle" font-family="sans-serif" font-size="3.5" fill="#fff" font-weight="bold">BLACK</text>
-          <text x="18" y="34" text-anchor="middle" font-family="sans-serif" font-size="3" fill="#ffccdd">BRITISH</text>
-          <text x="18" y="37.5" text-anchor="middle" font-family="sans-serif" font-size="3" fill="#ffccdd">MUSIC</text>
-        </svg>
-      </div>
-      <!-- Don Toliver - Octane -->
-      <div class="album" title="Don Toliver – Octane">
-        <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <linearGradient id="oct_g" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#ff4400"/>
-              <stop offset="50%" stop-color="#cc2200"/>
-              <stop offset="100%" stop-color="#880000"/>
-            </linearGradient>
-          </defs>
-          <rect width="60" height="60" fill="url(#oct_g)"/>
-          <!-- silhouette -->
-          <ellipse cx="30" cy="44" rx="16" ry="10" fill="#00000066"/>
-          <ellipse cx="30" cy="28" rx="10" ry="12" fill="#1a0a0a99"/>
-          <!-- flame effect -->
-          <path d="M20 50 Q25 35 22 25 Q30 38 28 22 Q36 35 34 25 Q38 40 40 50Z" fill="#ff660055"/>
-          <path d="M22 50 Q27 38 25 30 Q31 40 30 28 Q35 38 33 30 Q36 42 38 50Z" fill="#ffaa0044"/>
-          <text x="30" y="14" text-anchor="middle" font-family="sans-serif" font-size="7" fill="#fff" font-weight="bold">OCTANE</text>
-          <text x="30" y="56" text-anchor="middle" font-family="sans-serif" font-size="4" fill="#ffaaaa">DON TOLIVER</text>
-        </svg>
-      </div>
-    </div>
-    <div id="shelf-board-mid"></div>
-    <div class="shelf-section">
-      <!-- Kanye - College Dropout -->
-      <div class="album" title="Kanye West – The College Dropout">
-        <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
-          <rect width="60" height="60" fill="#f5c030"/>
-          <!-- bear mascot simplified -->
-          <circle cx="30" cy="28" r="14" fill="#fff"/>
-          <circle cx="22" cy="20" r="5" fill="#fff" stroke="#ccc" stroke-width="0.5"/>
-          <circle cx="38" cy="20" r="5" fill="#fff" stroke="#ccc" stroke-width="0.5"/>
-          <circle cx="22" cy="19" r="3" fill="#eee"/>
-          <circle cx="38" cy="19" r="3" fill="#eee"/>
-          <circle cx="26" cy="27" r="3" fill="#333"/>
-          <circle cx="34" cy="27" r="3" fill="#333"/>
-          <circle cx="27" cy="26" r="1.2" fill="#fff"/>
-          <circle cx="35" cy="26" r="1.2" fill="#fff"/>
-          <ellipse cx="30" cy="33" rx="5" ry="3" fill="#f0b090"/>
-          <ellipse cx="30" cy="32" rx="2.5" ry="1.8" fill="#e08060"/>
-          <path d="M25 36 Q30 40 35 36" stroke="#c06040" stroke-width="1.5" fill="none"/>
-          <!-- graduation cap -->
-          <rect x="18" y="14" width="24" height="3" rx="1" fill="#000"/>
-          <rect x="23" y="10" width="14" height="5" rx="1" fill="#000"/>
-          <text x="30" y="54" text-anchor="middle" font-family="sans-serif" font-size="3.5" fill="#333" font-weight="bold">COLLEGE DROPOUT</text>
-        </svg>
-      </div>
-      <!-- ASAP Rocky - Live Love ASAP -->
-      <div class="album" title="A$AP Rocky – Live.Love.A$AP">
-        <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <linearGradient id="asap_g" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#1a1a2e"/>
-              <stop offset="100%" stop-color="#0a0a18"/>
-            </linearGradient>
-          </defs>
-          <rect width="60" height="60" fill="url(#asap_g)"/>
-          <!-- street scene: dark alley, graffiti style -->
-          <rect x="0" y="35" width="60" height="25" fill="#0a0808"/>
-          <rect x="0" y="32" width="60" height="5" fill="#151010"/>
-          <!-- graffiti marks -->
-          <path d="M5 42 Q10 38 15 42 Q20 46 25 40" stroke="#cc2244" stroke-width="2" fill="none"/>
-          <text x="10" y="28" font-family="sans-serif" font-size="5" fill="#6644aa" font-weight="bold">LIVE</text>
-          <text x="10" y="34" font-family="sans-serif" font-size="5" fill="#4444cc" font-weight="bold">LOVE</text>
-          <text x="8" y="20" font-family="sans-serif" font-size="7" fill="#ffffff" font-weight="bold">A$AP</text>
-          <text x="30" y="56" text-anchor="middle" font-family="sans-serif" font-size="3.5" fill="#8888aa">ROCKY</text>
-        </svg>
-      </div>
-    </div>
-    <div id="shelf-board-bot"></div>
-    <div class="shelf-section">
-      <!-- Kanye - Late Registration -->
-      <div class="album" title="Kanye West – Late Registration">
-        <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
-          <rect width="60" height="60" fill="#e8d090"/>
-          <!-- movie reel / bear with cap again -->
-          <circle cx="30" cy="26" r="15" fill="#c8a060"/>
-          <!-- bear face gold version -->
-          <circle cx="22" cy="18" r="5" fill="#c8a060" stroke="#b09050" stroke-width="0.5"/>
-          <circle cx="38" cy="18" r="5" fill="#c8a060" stroke="#b09050" stroke-width="0.5"/>
-          <circle cx="26" cy="25" r="3" fill="#3a2010"/>
-          <circle cx="34" cy="25" r="3" fill="#3a2010"/>
-          <circle cx="27" cy="24" r="1.2" fill="#ffffffcc"/>
-          <circle cx="35" cy="24" r="1.2" fill="#ffffffcc"/>
-          <ellipse cx="30" cy="30" rx="5" ry="3.5" fill="#b88858"/>
-          <!-- band-aid -->
-          <rect x="26" y="28" width="8" height="3" rx="1.5" fill="#f5e0b0"/>
-          <rect x="29" y="27.5" width="2" height="4" fill="#f5e0b0"/>
-          <!-- hat -->
-          <rect x="16" y="12" width="28" height="3" rx="1" fill="#1a0a04"/>
-          <rect x="20" y="7" width="20" height="7" rx="2" fill="#1a0a04"/>
-          <text x="30" y="54" text-anchor="middle" font-family="sans-serif" font-size="3" fill="#5a3010" font-weight="bold">LATE REGISTRATION</text>
-        </svg>
-      </div>
-      <!-- Nas - Illmatic -->
-      <div class="album" title="Nas – Illmatic">
-        <svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <linearGradient id="nas_g" x1="0%" y1="100%" x2="100%" y2="0%">
-              <stop offset="0%" stop-color="#0a0a0a"/>
-              <stop offset="100%" stop-color="#1a1a1a"/>
-            </linearGradient>
-          </defs>
-          <rect width="60" height="60" fill="url(#nas_g)"/>
-          <!-- baby photo look: sepia tone face -->
-          <ellipse cx="30" cy="30" rx="22" ry="26" fill="#c89060"/>
-          <!-- face features -->
-          <ellipse cx="30" cy="28" rx="14" ry="16" fill="#c89a6a"/>
-          <ellipse cx="24" cy="24" rx="3" ry="2.5" fill="#2a1808"/>
-          <ellipse cx="36" cy="24" rx="3" ry="2.5" fill="#2a1808"/>
-          <path d="M24 32 Q30 36 36 32" stroke="#8a5030" stroke-width="1.5" fill="none"/>
-          <!-- sepia overlay -->
-          <rect width="60" height="60" fill="#8a601888"/>
-          <!-- title -->
-          <rect x="0" y="0" width="60" height="14" fill="#00000088"/>
-          <text x="30" y="10" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#ffffff" font-weight="bold" letter-spacing="1">illmatic</text>
-        </svg>
-      </div>
-    </div>
-  </div>
-
   <!-- TABLE -->
   <div id="table-wrap">
     <div id="table-outer">
@@ -799,7 +741,6 @@ body,html{width:100%;height:100%;overflow:hidden;background:#0c0704;font-family:
   <div id="info-row">
     <div class="ir"><span class="ir-v c-r" id="i-death">0%</span><span class="ir-l">ŚMIERĆ</span></div>
     <div class="ir"><span class="ir-v c-p" id="i-hit">1</span><span class="ir-l">HITMAN</span></div>
-    <div class="ir"><span class="ir-v c-b" id="i-draws">3</span><span class="ir-l">DOBIERAŃ</span></div>
     <div class="ir"><span class="ir-v c-g" id="i-ply">?</span><span class="ir-l">ŻYWYCH</span></div>
   </div>
   <div id="stats">
@@ -918,6 +859,14 @@ var CARD_TIPS={
   steal:'Wybierz gracza — losowo kradniesz jedną kartę z jego ręki.',
   give:'Wybierz gracza — musi oddać Ci jedną losową kartę z ręki.',
   cancel:'Anuluje efekt ostatniej zagranej karty mocy. Nie działa na Hitmana.',
+  peek:'Podgląd 3 następnych kart z wierzchu talii. Tylko Ty je widzisz.',
+  chain:'Łańcuch: blokuje poprzednią kartę mocy na 3 kolejki. Zablokowana karta nie może być skopiowana ani anulowana.',
+  addhit:'Dodaje 1 nowego Hitmana do talii w losowe miejsce. Niebezpieczeństwo wzrasta!',
+  reverse:'Odwraca kierunek kolejki. Zamiast w prawo, tura idzie w lewo.',
+  copy:'Kopiuje efekt ostatnio zagranej karty mocy i aktywuje go ponownie.',
+  purge:'Usuwa kompletnie 1 wybrany rodzaj kart z gry. Znikają ze stosu i talii.',
+  double:'Wskazujesz gracza — musi zagrać 2 kolejki z rzędu zamiast jednej.',
+  bottom:'Dobierasz kartę z samego dołu talii, a nie z wierzchu.',
 };
 var CDEF={
   hitman:{id:'hitman',name:'HITMAN',     art:'🔫',type:'hit', power:false,defCount:1},
@@ -931,6 +880,14 @@ var CDEF={
   steal: {id:'steal',name:'KRADZIEŻ',   art:'🗃️',type:'pow',power:true,defCount:2},
   give:  {id:'give', name:'WYMUSZENIE', art:'🤝',type:'pow',power:true,defCount:2},
   cancel:{id:'cancel',name:'ANULACJA',  art:'🚫',type:'pow',power:true,defCount:2},
+  peek:  {id:'peek', name:'PODGLĄD',    art:'👁️',type:'pow',power:true,defCount:2},
+  chain: {id:'chain',name:'ŁAŃCUCH',    art:'⛓️',type:'pow',power:true,defCount:2},
+  addhit:{id:'addhit',name:'+ HITMAN',  art:'💣',type:'pow',power:true,defCount:1},
+  reverse:{id:'reverse',name:'ODWRÓT',  art:'🔁',type:'pow',power:true,defCount:2},
+  copy:  {id:'copy', name:'KOPIA',      art:'🪞',type:'pow',power:true,defCount:2},
+  purge: {id:'purge',name:'CZYSTKA',    art:'🗑️',type:'pow',power:true,defCount:1},
+  double:{id:'double',name:'PODWÓJNA',  art:'⏩',type:'pow',power:true,defCount:2},
+  bottom:{id:'bottom',name:'SPÓD TALII',art:'⬇️',type:'pow',power:true,defCount:2},
 };
 var BOT_POOL=[
   {name:'WOLF', char:'wolf'},{name:'REX',   char:'rex'},
@@ -1036,6 +993,8 @@ function showSetup(mode){
 }
 function buildSetupUI(){
   for(var k in CDEF)cfgVals[k]=CDEF[k].defCount;
+  // default new cards to 0
+  ['peek','chain','addhit','reverse','copy','purge','double','bottom'].forEach(function(k){if(cfgVals[k]===undefined)cfgVals[k]=0;});
   var defaultPlayers=setupMode==='bot'?4:2;
   cfgVals._players=defaultPlayers;
   cfgVals._bots=defaultPlayers-1;
@@ -1047,9 +1006,13 @@ function buildSetupUI(){
     ps.innerHTML=
       '<div class="slbl">TWOJE IMIĘ</div>'+
       '<input class="sinp" id="p0n" value="Gracz" maxlength="14">'+
-      '<div style="height:6px"></div>'+
+      '<div class="slbl" style="margin-top:6px">TWÓJ AWATAR</div>'+
+      '<div id="av-picker" style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;max-width:min(320px,80vw)"></div>'+
+      '<div style="height:4px"></div>'+
       '<div class="slbl">LICZBA BOTÓW (1–3)</div>'+
       inlineNumCtrl('_bots',1,3,cfgVals._bots);
+    cfgVals._playerChar=cfgVals._playerChar||'ghost';
+    buildAvatarPicker();
   } else {
     ps.innerHTML=
       '<div class="slbl">LICZBA GRACZY (2–4)</div>'+
@@ -1060,6 +1023,21 @@ function buildSetupUI(){
   renderCardSettings();
 }
 
+function buildAvatarPicker(){
+  var div=$id('av-picker');if(!div)return;
+  div.innerHTML='';
+  var chars=Object.keys(CHARS);
+  chars.forEach(function(ch){
+    var btn=document.createElement('button');
+    var isSel=(cfgVals._playerChar===ch);
+    btn.style.cssText='width:clamp(40px,8vw,54px);height:clamp(40px,8vw,54px);border-radius:6px;cursor:pointer;border:2px solid '+(isSel?'#f5c842':'#3a2010')+';background:'+(isSel?'#2a1a0488':'#0c070488')+';padding:0;overflow:hidden;transition:border-color .15s;box-shadow:0 2px 6px #000;';
+    btn.innerHTML=charSVG(ch,isSel?52:48);
+    btn.onclick=function(){
+      cfgVals._playerChar=ch;buildAvatarPicker();
+    };
+    div.appendChild(btn);
+  });
+}
 function inlineNumCtrl(key,mn,mx,val){
   val=val!==undefined?val:mn; cfgVals[key]=val;
   return'<div class="sg-ctrl" style="justify-content:center">'+
@@ -1109,14 +1087,22 @@ function renderCardSettings(){
   if(!grid)return;
   grid.innerHTML='';
   var rows=[
-    {key:'hitman',  label:'🔫 Hitman',       min:1,max:8},
+    {key:'hitman',  label:'🔫 Hitman',        min:1,max:8},
     {key:'s_safe',  label:'📜 Bezpieczne',    min:2,max:30,combined:true},
-    {key:'shuffle', label:'🔀 Tasowanie',     min:0,max:6},
-    {key:'fake',    label:'🎪 Fałsz. taso.',  min:0,max:6},
-    {key:'angel',   label:'😇 Anioł',         min:0,max:6},
-    {key:'steal',   label:'🗃️ Kradzież',      min:0,max:6},
-    {key:'give',    label:'🤝 Wymuszenie',    min:0,max:6},
-    {key:'cancel',  label:'🚫 Anulacja',      min:0,max:6},
+    {key:'shuffle', label:'🔀 Tasowanie',     min:0,max:4},
+    {key:'fake',    label:'🎪 Fałsz. taso.',  min:0,max:4},
+    {key:'angel',   label:'😇 Anioł',         min:0,max:4},
+    {key:'steal',   label:'🗃️ Kradzież',      min:0,max:4},
+    {key:'give',    label:'🤝 Wymuszenie',    min:0,max:4},
+    {key:'cancel',  label:'🚫 Anulacja',      min:0,max:4},
+    {key:'peek',    label:'👁️ Podgląd',       min:0,max:4},
+    {key:'chain',   label:'⛓️ Łańcuch',       min:0,max:4},
+    {key:'addhit',  label:'💣 +Hitman',       min:0,max:3},
+    {key:'reverse', label:'🔁 Odwrót',        min:0,max:4},
+    {key:'copy',    label:'🪞 Kopia',         min:0,max:4},
+    {key:'purge',   label:'🗑️ Czystka',       min:0,max:2},
+    {key:'double',  label:'⏩ Podwójna',      min:0,max:4},
+    {key:'bottom',  label:'⬇️ Spód talii',    min:0,max:4},
   ];
   rows.forEach(function(r){
     var lbl=document.createElement('div');lbl.className='sg-label';lbl.textContent=r.label;
@@ -1166,10 +1152,13 @@ function startGame(){
   CFG.s1=b+(r>0?1:0);CFG.s2=b+(r>1?1:0);CFG.s3=b+(r>2?1:0);CFG.s4=b;
   CFG.shuffle=cfgVals.shuffle||0;CFG.fake=cfgVals.fake||0;CFG.angel=cfgVals.angel||0;
   CFG.steal=cfgVals.steal||0;CFG.give=cfgVals.give||0;CFG.cancel=cfgVals.cancel||0;
+  CFG.peek=cfgVals.peek||0;CFG.chain=cfgVals.chain||0;CFG.addhit=cfgVals.addhit||0;
+  CFG.reverse=cfgVals.reverse||0;CFG.copy=cfgVals.copy||0;CFG.purge=cfgVals.purge||0;
+  CFG.double=cfgVals.double||0;CFG.bottom=cfgVals.bottom||0;
   var players=[];
   if(setupMode==='bot'){
     var nm=($id('p0n')&&$id('p0n').value.trim())||'Gracz';
-    players.push({name:nm,isBot:false,hand:[],alive:true,char:'ghost',personality:'human'});
+    players.push({name:nm,isBot:false,hand:[],alive:true,char:cfgVals._playerChar||'ghost',personality:'human'});
     var nBots=Math.max(1,cfgVals._bots||3);
     var pool=shuffleArr(BOT_POOL.slice());
     for(var i=0;i<Math.min(nBots,pool.length);i++)
@@ -1192,6 +1181,11 @@ function startGame(){
     drawsLeft:3,
     newCardIdx:-1,
     playedCardThisTurn:false,
+    direction:1,          // 1=clockwise, -1=counter-clockwise
+    chainedCard:null,     // card currently chained (blocked)
+    chainTurnsLeft:0,     // turns remaining for chain
+    doubleTarget:-1,      // player index who must play twice
+    doublingTurn:false,   // flag: this is the forced second turn
   };
   $id('setup-ov').style.display='none';
   $id('exit-btn').style.display='block';
@@ -1214,7 +1208,6 @@ function render(){
   $id('i-death').textContent=dpct+'%';
   $id('i-hit').textContent=hits;
   $id('i-ply').textContent=alive;
-  $id('i-draws').textContent=G.drawsLeft;
   // discard
   var dt=$id('dis-top'),dc=$id('dis-ct');
   if(G.discardPile.length>0){
@@ -1237,21 +1230,146 @@ function render(){
   }
   renderOpps();renderHandAndButtons();
 }
+function fanCardsHTML(n){
+  if(n<=0)return'<div class="opp-hand-fan" style="height:clamp(34px,6.5vw,50px);width:clamp(54px,10vw,80px)"></div>';
+  var total=Math.min(n,10);
+  var spread=Math.min((total-1)*16,64); // total angular spread in degrees
+  var step=total>1?spread/(total-1):0;
+  var startAngle=-(spread/2);
+  var html='<div class="opp-hand-fan">';
+  for(var i=0;i<total;i++){
+    var angle=startAngle+(i*step);
+    var tx= i*(Math.min(24/Math.max(total-1,1),18)) - Math.min(n-1,9)*9;
+    html+='<div class="fan-card" style="transform:translateX('+tx+'px) rotate('+angle+'deg)"><div class="fc-diamond"></div></div>';
+  }
+  html+='</div>';
+  return html;
+}
 function renderOpps(){
   var cont=$id('opps');cont.innerHTML='';
-  var pos=['left:50%;top:clamp(78px,12vh,98px);transform:translateX(-50%)','left:9%;top:clamp(112px,16.5vh,132px)','right:9%;top:clamp(112px,16.5vh,132px)'];
+  var pos=[
+    'left:50%;top:clamp(72px,11vh,92px);transform:translateX(-50%)',
+    'left:8%;top:clamp(106px,15.5vh,126px)',
+    'right:8%;top:clamp(106px,15.5vh,126px)'
+  ];
   for(var idx=0;idx<Math.min(G.players.length-1,3);idx++){
     var pi=idx+1,p=G.players[pi];
     var div=document.createElement('div');div.className='opp';div.style.cssText='position:absolute;'+pos[idx];
     var fc='opp-frame'+(pi===G.cur?' act':'')+(p.alive?'':' dead');
-    var minis='';for(var m=0;m<Math.min(p.hand.length,7);m++)minis+='<div class="mc"></div>';
-    div.innerHTML='<div style="display:flex;margin-bottom:3px;justify-content:center">'+minis+'</div>'+
+    div.innerHTML=
+      fanCardsHTML(p.hand.length)+
       '<div class="'+fc+'">'+charSVG(p.char,60)+'</div>'+
       '<div class="oname">'+p.name+'</div>'+
-      '<div class="ocards">'+p.hand.length+' kart</div>'+
       (!p.alive?'<div style="font-size:8px;color:#ff4444;font-family:Cinzel,serif;letter-spacing:1px">☠ WYELIM.</div>':'');
     cont.appendChild(div);
   }
+  // render turn-order arrows
+  renderTurnArrows();
+}
+
+function renderTurnArrows(){
+  var old=$id('turn-arrows');if(old)old.remove();
+  if(!G||G.over)return;
+  var alive=G.players.filter(function(p){return p.alive;});
+  if(alive.length<2)return;
+  var svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.id='turn-arrows';
+  svg.style.cssText='position:absolute;inset:0;width:100%;height:100%;z-index:4;pointer-events:none;overflow:visible';
+
+  // player positions (approximate centers) — index in G.players
+  // player 0 = bottom center, 1 = top center, 2 = left, 3 = right
+  var W=window.innerWidth, H=window.innerHeight;
+  var tableBottom=H-clamp(72,14*H/100,115);
+  var tableTop=tableBottom-clamp(230,30*W/100,230);
+  var tableMidY=(tableTop+tableBottom)/2;
+  var tableCenterX=W/2;
+
+  function clamp(mn,v,mx){return Math.max(mn,Math.min(mx,v));}
+
+  // approximate centers of each player slot (matching opp positions + player 0 at bottom)
+  var positions=[];
+  // player 0 — bottom center (hand area)
+  positions[0]={x:W/2, y:H-clamp(50,10*H/100,80)};
+  // opp positions
+  var oppPosStyle=[
+    {x:W/2,        y:clamp(72,11*H/100,92)+30},
+    {x:W*0.08+30,  y:clamp(106,15.5*H/100,126)+30},
+    {x:W*0.92-30,  y:clamp(106,15.5*H/100,126)+30}
+  ];
+  for(var i=0;i<Math.min(G.players.length-1,3);i++){
+    positions[i+1]=oppPosStyle[i];
+  }
+
+  // direction indicator text
+  var dirTxt=document.createElementNS('http://www.w3.org/2000/svg','text');
+  dirTxt.setAttribute('x',W/2);dirTxt.setAttribute('y',H/2-clamp(100,14*H/100,120));
+  dirTxt.setAttribute('text-anchor','middle');
+  dirTxt.setAttribute('font-size','11');dirTxt.setAttribute('font-family','Cinzel,serif');
+  dirTxt.setAttribute('fill','#d4a01777');dirTxt.setAttribute('letter-spacing','2');
+  dirTxt.textContent=G.direction===1?'▸ ZGODNIE Z ZEGAREM':'◂ ODWROTNIE';
+  svg.appendChild(dirTxt);
+
+  // draw arrow from each alive player to the next alive player in turn order
+  var gold='#d4a017';
+  var defs=document.createElementNS('http://www.w3.org/2000/svg','defs');
+  var marker=document.createElementNS('http://www.w3.org/2000/svg','marker');
+  marker.setAttribute('id','arr-head');
+  marker.setAttribute('viewBox','0 0 10 10');
+  marker.setAttribute('refX','8');marker.setAttribute('refY','5');
+  marker.setAttribute('markerWidth','5');marker.setAttribute('markerHeight','5');
+  marker.setAttribute('orient','auto-start-reverse');
+  var mpath=document.createElementNS('http://www.w3.org/2000/svg','path');
+  mpath.setAttribute('d','M1 1L9 5L1 9');
+  mpath.setAttribute('fill','none');mpath.setAttribute('stroke',gold);
+  mpath.setAttribute('stroke-width','2');mpath.setAttribute('stroke-linecap','round');
+  marker.appendChild(mpath);defs.appendChild(marker);svg.appendChild(defs);
+
+  // find sequence of alive players in order starting from current
+  var seq=[];
+  for(var step=0;step<G.players.length;step++){
+    var idx2=(G.cur+step)%G.players.length;
+    if(G.players[idx2].alive) seq.push(idx2);
+  }
+  // draw arrow from each to next (curved, offset from center)
+  for(var i=0;i<seq.length;i++){
+    var fromIdx=seq[i];
+    var toIdx=seq[(i+1)%seq.length];
+    if(fromIdx===toIdx)continue;
+    var fp=positions[fromIdx];
+    var tp=positions[toIdx];
+    if(!fp||!tp)continue;
+
+    var isCurrent=(fromIdx===G.cur);
+    var color=isCurrent?'#f5c842':gold+'aa';
+    var strokeW=isCurrent?2.5:1.5;
+    var opacity=isCurrent?1:0.55;
+
+    // midpoint + perpendicular offset for curve
+    var mx2=(fp.x+tp.x)/2, my2=(fp.y+tp.y)/2;
+    var dx=tp.x-fp.x, dy=tp.y-fp.y;
+    var len=Math.sqrt(dx*dx+dy*dy)||1;
+    var perp={x:-dy/len, y:dx/len};
+    var curve=Math.min(len*0.22, 40);
+    var cx=mx2+perp.x*curve, cy=my2+perp.y*curve;
+
+    // shorten start/end by 30px so arrow doesn't overlap avatar
+    var trim=30;
+    var sfx=fp.x+(cx-fp.x)*trim/len*0.6;
+    var sfy=fp.y+(cy-fp.y)*trim/len*0.6;
+    var tex=tp.x-(tp.x-cx)*trim/len*0.6;
+    var tey=tp.y-(tp.y-cy)*trim/len*0.6;
+
+    var path=document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d','M'+sfx+','+sfy+' Q'+cx+','+cy+' '+tex+','+tey);
+    path.setAttribute('fill','none');
+    path.setAttribute('stroke',color);
+    path.setAttribute('stroke-width',strokeW);
+    path.setAttribute('opacity',opacity);
+    path.setAttribute('stroke-dasharray', isCurrent?'none':'5,4');
+    path.setAttribute('marker-end','url(#arr-head)');
+    svg.appendChild(path);
+  }
+  document.getElementById('app').appendChild(svg);
 }
 function renderHandAndButtons(){
   var hc=$id('hand-cards'),br=$id('btn-row');
@@ -1273,12 +1391,11 @@ function renderHandAndButtons(){
     var hasOldCard=false;
     for(var i=0;i<hp.hand.length;i++)if(i!==G.newCardIdx&&hp.hand[i].id!=='angel'){hasOldCard=true;break;}
     var pHint=hasOldCard?'<span class="phase-lbl">lub zagraj kartę z ręki</span>':'';
-    var dlbl='<span class="draws-lbl">'+G.drawsLeft+'/3 dobierań</span>';
     var eBtn='<button class="abtn btn-green" onclick="endTurnEarly()">✓ Zakończ turę</button>';
     if(!canDraw&&G.deck.length===0){
-      br.innerHTML=dlbl+'<span class="phase-lbl" style="color:#cc4444">Talia pusta!</span>'+pHint+eBtn;
+      br.innerHTML='<span class="phase-lbl" style="color:#cc4444">Talia pusta!</span>'+pHint+eBtn;
     } else {
-      br.innerHTML=dlbl+dBtn+pHint+eBtn;
+      br.innerHTML=dBtn+pHint+eBtn;
     }
   } else if(G.phase==='hand-play'){
     var selC=(G.selectedCard>=0&&G.selectedCard!==G.newCardIdx)?hp.hand[G.selectedCard]:null;
@@ -1417,6 +1534,11 @@ function doDrawCard(cb){
 ================================================================ */
 function executePower(c,cur,cb){
   G.playedCardThisTurn=true;
+  // block chained card
+  if(G.chainedCard&&G.chainedCard.id===c.id&&G.chainTurnsLeft>0){
+    showNotif('⛓️ ZABLOKOWANE!','#cc8800');
+    G.phase='draw';G.newCardIdx=-1;render();nextTurn();if(cb)cb();return;
+  }
   if(c.id==='shuffle'){
     G.deck=shuffleArr(G.deck);showNotif('🔀 TASOWANIE!','#8888ff');
     G.lastPow=c;G.phase='draw';G.newCardIdx=-1;render();nextTurn();if(cb)cb();return;
@@ -1442,7 +1564,120 @@ function executePower(c,cur,cb){
     });
     G.phase='picking';render();if(cb)cb();return;
   }
+  // ── NEW CARDS ──
+  if(c.id==='peek'){
+    var top3=G.deck.slice(-3).reverse();
+    G.lastPow=c;
+    showPeekCards(top3,cur.isBot);
+    G.phase='draw';G.newCardIdx=-1;render();
+    if(cur.isBot){nextTurn();if(cb)cb();}
+    // human: closePeek will call nextTurn
+    else{if(cb)cb();}
+    return;
+  }
+  if(c.id==='chain'){
+    if(G.lastPow&&G.lastPow.id!=='hitman'){
+      G.chainedCard=G.lastPow;G.chainTurnsLeft=3;
+      showNotif('⛓️ ŁAŃCUCH: '+G.lastPow.name+' ZABLOKOWANE!','#cc8800');
+    } else showNotif('⛓️ ŁAŃCUCH – brak celu','#666');
+    G.lastPow=c;G.phase='draw';G.newCardIdx=-1;render();nextTurn();if(cb)cb();return;
+  }
+  if(c.id==='addhit'){
+    var pos=rnd(0,G.deck.length);
+    G.deck.splice(pos,0,{id:'hitman',name:'HITMAN',art:'🔫',type:'hit',power:false,uid:'hitman_added_'+Date.now()});
+    showNotif('💣 +1 HITMAN!','#ff4444');
+    G.lastPow=c;G.phase='draw';G.newCardIdx=-1;render();nextTurn();if(cb)cb();return;
+  }
+  if(c.id==='reverse'){
+    G.direction*=-1;
+    showNotif('🔁 ODWRÓT KOLEJKI!',G.direction===1?'#88aaff':'#ffaa88');
+    G.lastPow=c;G.phase='draw';G.newCardIdx=-1;render();nextTurn();if(cb)cb();return;
+  }
+  if(c.id==='copy'){
+    if(G.lastPow&&G.lastPow.id!=='hitman'&&G.lastPow.power){
+      showNotif('🪞 KOPIA: '+G.lastPow.name,'#cc88ff');
+      var copied=G.lastPow;
+      setTimeout(function(){executePower(copied,cur,cb);},300);
+    } else {
+      showNotif('🪞 KOPIA – brak mocy','#666');
+      G.phase='draw';G.newCardIdx=-1;render();nextTurn();if(cb)cb();
+    }
+    return;
+  }
+  if(c.id==='purge'){
+    // show picker of card types to remove
+    var types=['hitman','s1','shuffle','fake','angel','steal','give','cancel','peek','chain','addhit','reverse','copy','double','bottom'];
+    var typesInDeck={};
+    G.deck.forEach(function(dc){typesInDeck[dc.id]=dc.name;});
+    var available=types.filter(function(t){return typesInDeck[t];}).map(function(t){return{name:typesInDeck[t],id:t};});
+    if(!available.length){showNotif('🗑️ TALIA PUSTA','#666');G.phase='draw';G.newCardIdx=-1;render();nextTurn();if(cb)cb();return;}
+    showTypePicker('🗑️ USUŃ RODZAJ KART',available,function(tid){
+      var before=G.deck.length;
+      G.deck=G.deck.filter(function(dc){return dc.id!==tid;});
+      G.discardPile=G.discardPile.filter(function(dc){return dc.id!==tid;});
+      showNotif('🗑️ USUNIĘTO: '+(typesInDeck[tid]||tid),'#ff8844');
+      G.lastPow=c;G.phase='draw';G.newCardIdx=-1;render();nextTurn();
+    });
+    G.phase='picking';render();if(cb)cb();return;
+  }
+  if(c.id==='double'){
+    var tgts=getOthersAlive();
+    if(!tgts.length){G.phase='draw';G.newCardIdx=-1;render();nextTurn();if(cb)cb();return;}
+    showPicker('⏩ Kto gra 2 razy z rzędu?',tgts,function(t){
+      var ti=G.players.indexOf(t);
+      G.doubleTarget=ti;G.doublingTurn=false;
+      showNotif('⏩ '+t.name+' GRA 2 KOLEJKI!','#ffcc44');
+      G.lastPow=c;G.phase='draw';G.newCardIdx=-1;render();nextTurn();
+    });
+    G.phase='picking';render();if(cb)cb();return;
+  }
+  if(c.id==='bottom'){
+    if(G.deck.length===0){showNotif('TALIA PUSTA','#cc4444');G.phase='draw';G.newCardIdx=-1;render();nextTurn();if(cb)cb();return;}
+    var card=G.deck.shift(); // bottom card
+    G.drawsLeft--;
+    var newIdx=cur.hand.length;
+    cur.hand.push(card);G.newCardIdx=newIdx;
+    showNotif('⬇️ Z DOŁU: '+card.name,'#88aaff');
+    G.lastPow=c;G.phase='draw';render();
+    if(G.drawsLeft<=0){setTimeout(function(){G.newCardIdx=-1;nextTurn();},600);}
+    if(cb)cb();return;
+  }
   if(cb)cb();
+}
+
+/* ── peek modal ── */
+function showPeekCards(cards,isBot){
+  if(isBot)return; // bots just get info silently
+  var ov=$id('peek-ov');if(!ov){
+    ov=document.createElement('div');ov.id='peek-ov';
+    ov.style.cssText='position:absolute;inset:0;z-index:65;background:#000000cc;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;padding:20px';
+    ov.innerHTML='<div style="font-family:Cinzel Decorative,serif;font-size:clamp(18px,4vw,28px);color:#f5c842;text-shadow:0 0 16px #f5c84288;letter-spacing:4px">👁️ PODGLĄD</div>'+
+      '<div id="peek-cards" style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center"></div>'+
+      '<button onclick="closePeekModal()" style="font-family:Cinzel,serif;font-size:13px;letter-spacing:2px;color:#55ee99;border:1px solid #229944;background:#0a1a0e88;border-radius:4px;padding:9px 22px;cursor:pointer;margin-top:6px">ZAMKNIJ</button>';
+    document.getElementById('app').appendChild(ov);
+  }
+  var pc=$id('peek-cards');pc.innerHTML='';
+  if(!cards||!cards.length){pc.innerHTML='<div style="color:#666;font-family:Cinzel,serif">BRAK KART</div>';ov.style.display='flex';return;}
+  cards.forEach(function(c){pc.innerHTML+=cardFaceHTML(c,false,false);});
+  ov.style.display='flex';
+}
+function closePeekModal(){
+  var ov=$id('peek-ov');if(ov)ov.style.display='none';
+  nextTurn();
+}
+
+/* ── type picker for purge ── */
+function showTypePicker(title,types,cb){
+  pickerCb=cb;
+  $id('picker-ttl').textContent=title;
+  var list=$id('picker-list');list.innerHTML='';
+  types.forEach(function(t){
+    var btn=document.createElement('button');btn.className='picker-btn';
+    btn.innerHTML='<span style="font-size:22px">'+( t.id==='hitman'?'🔫':t.id==='s1'?'📜':'🃏')+'</span><span>'+t.name+'</span>';
+    btn.onclick=function(){$id('picker-ov').style.display='none';if(pickerCb)pickerCb(t.id);pickerCb=null;};
+    list.appendChild(btn);
+  });
+  $id('picker-ov').style.display='flex';
 }
 
 /* ================================================================
@@ -1580,9 +1815,26 @@ function nextTurn(){
   if(G.phase==='picking'||G.phase==='hitman-choice'||$id('angel-ov').style.display==='flex')return;
   var cnt=0;for(var i=0;i<G.players.length;i++)if(G.players[i].alive)cnt++;
   if(cnt<=1){checkWin();return;}
-  var next=(G.cur+1)%G.players.length,tries=0;
-  while(!G.players[next].alive&&tries<G.players.length){next=(next+1)%G.players.length;tries++;}
-  G.cur=next;G.phase='draw';G.selectedCard=-1;G.drawsLeft=3;G.newCardIdx=-1;G.playedCardThisTurn=false;
+
+  // tick down chain
+  if(G.chainTurnsLeft>0){G.chainTurnsLeft--;if(G.chainTurnsLeft===0)G.chainedCard=null;}
+
+  // double-turn: if current player was forced to play twice, handle it
+  if(G.doubleTarget===G.cur&&!G.doublingTurn){
+    G.doublingTurn=true;
+    G.phase='draw';G.selectedCard=-1;G.drawsLeft=3;G.newCardIdx=-1;G.playedCardThisTurn=false;
+    render();if(isCurBot())setTimeout(botTurn,1500);return;
+  }
+  G.doublingTurn=false;
+  G.doubleTarget=-1; // reset after double turn completed
+
+  var n=G.players.length;
+  var next=(G.cur+G.direction+n)%n;
+  var tries=0;
+  while(!G.players[next].alive&&tries<n){next=(next+G.direction+n)%n;tries++;}
+  G.cur=next;G.phase='draw';G.selectedCard=-1;G.drawsLeft=3;G.newCardIdx=-1;
+  G.playedCardThisTurn=false;
+  if(G.doubleTarget===next&&!G.doublingTurn){/* will fire on this turn */}
   render();
   if(isCurBot())setTimeout(botTurn,1500);
 }
