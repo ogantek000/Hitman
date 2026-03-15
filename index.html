@@ -1765,7 +1765,7 @@ function doDrawCard(cb){
       setTimeout(function(){
         G.newCardIdx=-1;
         nextTurn();
-        if(G.onlineMode&&OL.isHost) olSync();
+        if(G.onlineMode&&OL.isHost) olPush();
       },600);
     }
     if(cb)cb();
@@ -2099,7 +2099,7 @@ function nextTurn(){
     G.doublingTurn=true;
     G.phase='draw';G.selectedCard=-1;G.drawsLeft=3;G.newCardIdx=-1;G.playedCardThisTurn=false;
     render();
-    if(G.onlineMode&&OL.isHost) olSync();
+    if(G.onlineMode&&OL.isHost) olPush();
     if(isCurBot())setTimeout(botTurn,1500);return;
   }
   G.doublingTurn=false;
