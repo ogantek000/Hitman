@@ -1,13 +1,6 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-
-
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#3b82f6">
-<link rel="apple-touch-icon" href="icon.png">
-
-  
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>HITMAN</title>
@@ -1447,67 +1440,104 @@ function renderOpps(){
 function renderTurnArrows(){
   var old=$id('turn-arrows');if(old)old.remove();
   if(!G||G.over)return;
-  var alive=G.players.filter(function(p){return p.alive;});
-  if(alive.length<2)return;
+  var aliveCount=G.players.filter(function(p){return p.alive;}).length;
+  if(aliveCount<2)return;
+
   var svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
   svg.id='turn-arrows';
   svg.style.cssText='position:absolute;inset:0;width:100%;height:100%;z-index:4;pointer-events:none;overflow:visible';
 
-  // player positions (approximate centers) — index in G.players
-  // player 0 = bottom center, 1 = top center, 2 = left, 3 = right
   var W=window.innerWidth, H=window.innerHeight;
-  var tableBottom=H-clamp(72,14*H/100,115);
-  var tableTop=tableBottom-clamp(230,30*W/100,230);
-  var tableMidY=(tableTop+tableBottom)/2;
-  var tableCenterX=W/2;
+  function cl(mn,v,mx){return Math.max(mn,Math.min(mx,v));}
 
-  function clamp(mn,v,mx){return Math.max(mn,Math.min(mx,v));}
+  // ── FIXED positions matching actual screen layout ──
+  // player 0 = bottom-center (human)
+  // player 1 = LEFT side  (opp pos index 1 in renderOpps)
+  // player 2 = TOP-CENTER (opp pos index 0 in renderOpps)
+  // player 3 = RIGHT side (opp pos index 2 in renderOpps)
+  //
+  // renderOpps pos array:
+  //   idx=0 → pos[0] = left:50%;top ~ 72-92px  (TOP CENTER)
+  //   idx=1 → pos[1] = left:8%;top ~ 106-126px  (LEFT)
+  //   idx=2 → pos[2] = right:8%;top ~ 106-126px (RIGHT)
+  // so players[1] uses pos[0] = TOP CENTER
+  //    players[2] uses pos[1] = LEFT
+  //    players[3] uses pos[2] = RIGHT
 
-  // approximate centers of each player slot (matching opp positions + player 0 at bottom)
-  var positions=[];
-  // player 0 — bottom center (hand area)
-  positions[0]={x:W/2, y:H-clamp(50,10*H/100,80)};
-  // opp positions
-  var oppPosStyle=[
-    {x:W/2,        y:clamp(72,11*H/100,92)+30},
-    {x:W*0.08+30,  y:clamp(106,15.5*H/100,126)+30},
-    {x:W*0.92-30,  y:clamp(106,15.5*H/100,126)+30}
-  ];
-  for(var i=0;i<Math.min(G.players.length-1,3);i++){
-    positions[i+1]=oppPosStyle[i];
+  var avatarR = cl(22, 3.75*W/100, 30); // approx avatar half-size for trim
+
+  var positions = {};
+  positions[0] = {x: W/2,        y: H - cl(60, 11*H/100, 90)};          // bottom you
+  positions[1] = {x: W/2,        y: cl(72,11*H/100,92) + avatarR + 8};  // top center
+  positions[2] = {x: W*0.08 + avatarR + 4, y: cl(106,15.5*H/100,126) + avatarR + 8}; // left
+  positions[3] = {x: W*0.92 - avatarR - 4, y: cl(106,15.5*H/100,126) + avatarR + 8}; // right
+
+  // Clockwise visual order: 0(bottom) → 2(left) → 1(top) → 3(right) → 0
+  // This matches user request: you → bot left → bot top → bot right
+  // direction=1 (CW): next = clockwiseOrder[current]
+  // direction=-1 (CCW): reverse
+  var cwOrder = [0,2,1,3]; // CW sequence indices into G.players (4-player)
+
+  // Build the actual sequence respecting direction and alive status
+  // Find position of G.cur in cwOrder
+  var totalP = G.players.length;
+
+  // For any number of players, build sequence from cur following direction
+  function getNextAlive(from){
+    var n=G.players.length;
+    var step = 1; // always step by 1 in player array, but we map through cwOrder
+    // find from in cwOrder
+    var cwLen=Math.min(n,4);
+    var fromPos=-1;
+    for(var k=0;k<cwLen;k++){if(cwOrder[k]===from){fromPos=k;break;}}
+    if(fromPos<0)return (from+1)%n; // fallback
+    var tries=0;
+    var nextPos=(fromPos + (G.direction===1?1:cwLen-1))%cwLen;
+    while(!G.players[cwOrder[nextPos]].alive && tries<cwLen){
+      nextPos=(nextPos+(G.direction===1?1:cwLen-1))%cwLen;
+      tries++;
+    }
+    return cwOrder[nextPos];
   }
 
-  // direction indicator text
+  // Build full sequence for arrows
+  var seq=[];
+  var seen={};
+  var cur2=G.cur;
+  for(var step=0;step<G.players.length;step++){
+    if(seen[cur2])break;
+    if(G.players[cur2].alive){seen[cur2]=true;seq.push(cur2);}
+    cur2=getNextAlive(cur2);
+  }
+
+  // Direction label
+  var tableY = H - cl(72,14*H/100,115) - cl(115,15*H/100,145);
   var dirTxt=document.createElementNS('http://www.w3.org/2000/svg','text');
-  dirTxt.setAttribute('x',W/2);dirTxt.setAttribute('y',H/2-clamp(100,14*H/100,120));
+  dirTxt.setAttribute('x',W/2);
+  dirTxt.setAttribute('y', tableY);
   dirTxt.setAttribute('text-anchor','middle');
-  dirTxt.setAttribute('font-size','11');dirTxt.setAttribute('font-family','Cinzel,serif');
-  dirTxt.setAttribute('fill','#d4a01777');dirTxt.setAttribute('letter-spacing','2');
-  dirTxt.textContent=G.direction===1?'▸ ZGODNIE Z ZEGAREM':'◂ ODWROTNIE';
+  dirTxt.setAttribute('font-size','10');
+  dirTxt.setAttribute('font-family','Cinzel,serif');
+  dirTxt.setAttribute('fill','#d4a01766');
+  dirTxt.setAttribute('letter-spacing','2');
+  dirTxt.textContent = G.direction===1 ? '↻ ZGODNIE Z ZEGAREM' : '↺ POD PRĄD';
   svg.appendChild(dirTxt);
 
-  // draw arrow from each alive player to the next alive player in turn order
+  // Defs — arrowhead marker
   var gold='#d4a017';
   var defs=document.createElementNS('http://www.w3.org/2000/svg','defs');
   var marker=document.createElementNS('http://www.w3.org/2000/svg','marker');
-  marker.setAttribute('id','arr-head');
-  marker.setAttribute('viewBox','0 0 10 10');
-  marker.setAttribute('refX','8');marker.setAttribute('refY','5');
-  marker.setAttribute('markerWidth','5');marker.setAttribute('markerHeight','5');
+  marker.setAttribute('id','arr-head');marker.setAttribute('viewBox','0 0 10 10');
+  marker.setAttribute('refX','9');marker.setAttribute('refY','5');
+  marker.setAttribute('markerWidth','6');marker.setAttribute('markerHeight','6');
   marker.setAttribute('orient','auto-start-reverse');
   var mpath=document.createElementNS('http://www.w3.org/2000/svg','path');
-  mpath.setAttribute('d','M1 1L9 5L1 9');
+  mpath.setAttribute('d','M1 2L8 5L1 8');
   mpath.setAttribute('fill','none');mpath.setAttribute('stroke',gold);
-  mpath.setAttribute('stroke-width','2');mpath.setAttribute('stroke-linecap','round');
+  mpath.setAttribute('stroke-width','1.8');mpath.setAttribute('stroke-linecap','round');
   marker.appendChild(mpath);defs.appendChild(marker);svg.appendChild(defs);
 
-  // find sequence of alive players in order starting from current
-  var seq=[];
-  for(var step=0;step<G.players.length;step++){
-    var idx2=(G.cur+step)%G.players.length;
-    if(G.players[idx2].alive) seq.push(idx2);
-  }
-  // draw arrow from each to next (curved, offset from center)
+  // Draw arrows between sequence
   for(var i=0;i<seq.length;i++){
     var fromIdx=seq[i];
     var toIdx=seq[(i+1)%seq.length];
@@ -1517,35 +1547,43 @@ function renderTurnArrows(){
     if(!fp||!tp)continue;
 
     var isCurrent=(fromIdx===G.cur);
-    var color=isCurrent?'#f5c842':gold+'aa';
-    var strokeW=isCurrent?2.5:1.5;
-    var opacity=isCurrent?1:0.55;
+    var color=isCurrent?'#f5c842':gold+'88';
+    var sw=isCurrent?2.8:1.6;
+    var op=isCurrent?1:0.45;
 
-    // midpoint + perpendicular offset for curve
-    var mx2=(fp.x+tp.x)/2, my2=(fp.y+tp.y)/2;
     var dx=tp.x-fp.x, dy=tp.y-fp.y;
     var len=Math.sqrt(dx*dx+dy*dy)||1;
-    var perp={x:-dy/len, y:dx/len};
-    var curve=Math.min(len*0.22, 40);
-    var cx=mx2+perp.x*curve, cy=my2+perp.y*curve;
 
-    // shorten start/end by 30px so arrow doesn't overlap avatar
-    var trim=30;
-    var sfx=fp.x+(cx-fp.x)*trim/len*0.6;
-    var sfy=fp.y+(cy-fp.y)*trim/len*0.6;
-    var tex=tp.x-(tp.x-cx)*trim/len*0.6;
-    var tey=tp.y-(tp.y-cy)*trim/len*0.6;
+    // Curve toward center of table
+    var tableX=W/2, tableY2=H-cl(72,14*H/100,115)-cl(115,15*H/100,145)/2;
+    var mx2=(fp.x+tp.x)/2, my2=(fp.y+tp.y)/2;
+    // push control point toward table center
+    var toCenterX=tableX-mx2, toCenterY=tableY2-my2;
+    var tcLen=Math.sqrt(toCenterX*toCenterX+toCenterY*toCenterY)||1;
+    var pull=Math.min(len*0.18, 35);
+    var cxv=mx2+toCenterX/tcLen*pull;
+    var cyv=my2+toCenterY/tcLen*pull;
+
+    // Trim start/end away from avatar centers
+    var trim=avatarR+8;
+    var t1=trim/len;
+    var sfx=fp.x+(cxv-fp.x)*t1*1.2;
+    var sfy=fp.y+(cyv-fp.y)*t1*1.2;
+    var t2=trim/len;
+    var tex=tp.x-(tp.x-cxv)*t2*1.2;
+    var tey=tp.y-(tp.y-cyv)*t2*1.2;
 
     var path=document.createElementNS('http://www.w3.org/2000/svg','path');
-    path.setAttribute('d','M'+sfx+','+sfy+' Q'+cx+','+cy+' '+tex+','+tey);
+    path.setAttribute('d','M'+sfx.toFixed(1)+','+sfy.toFixed(1)+' Q'+cxv.toFixed(1)+','+cyv.toFixed(1)+' '+tex.toFixed(1)+','+tey.toFixed(1));
     path.setAttribute('fill','none');
     path.setAttribute('stroke',color);
-    path.setAttribute('stroke-width',strokeW);
-    path.setAttribute('opacity',opacity);
-    path.setAttribute('stroke-dasharray', isCurrent?'none':'5,4');
+    path.setAttribute('stroke-width',sw);
+    path.setAttribute('opacity',op);
+    if(!isCurrent) path.setAttribute('stroke-dasharray','6,4');
     path.setAttribute('marker-end','url(#arr-head)');
     svg.appendChild(path);
   }
+
   document.getElementById('app').appendChild(svg);
 }
 function renderHandAndButtons(){
@@ -2017,17 +2055,18 @@ function nextTurn(){
 }
 
 /* ================================================================
-   ONLINE MULTIPLAYER (WebSocket via wss://ws.postman-echo.com or similar)
-   We use a simple peer-channel approach with a free public WS relay
+   ONLINE MULTIPLAYER
+   Uses BroadcastChannel (same device / same browser, different tabs)
+   + localStorage polling as fallback for cross-tab sync
+   For true cross-device: share the same network and open file from server
 ================================================================ */
 var ONLINE = {
-  ws: null,
+  bc: null,           // BroadcastChannel
   roomCode: null,
   myName: null,
   isHost: false,
-  connected: false,
+  myIdx: 0,
   players: [],
-  ready: false,
 };
 
 function buildOnlineUI(){
@@ -2038,102 +2077,134 @@ function buildOnlineUI(){
     '<div class="divider" style="margin:6px 0"></div>'+
     '<button class="mbtn pri" style="width:100%" onclick="onlineCreate()">🏠 Stwórz pokój</button>'+
     '<div class="menu-sub" style="font-size:11px;margin:0">— lub —</div>'+
-    '<div class="slbl" style="margin-bottom:2px">KOD POKOJU</div>'+
-    '<input class="sinp" id="online-code" placeholder="np. ABC123" maxlength="6" style="text-transform:uppercase;letter-spacing:4px">'+
+    '<div class="slbl" style="margin-bottom:2px">KOD POKOJU (6 cyfr)</div>'+
+    '<input class="sinp" id="online-code" placeholder="ABC123" maxlength="6" style="text-transform:uppercase;letter-spacing:4px">'+
     '<button class="mbtn pri" style="width:100%" onclick="onlineJoin()">🔗 Dołącz do pokoju</button>'+
-    '<div id="online-status" style="font-family:IM Fell English,serif;font-size:12px;color:#7a5a2a;text-align:center;min-height:16px;margin-top:4px"></div>';
+    '<div id="online-status" style="font-family:IM Fell English,serif;font-size:12px;color:#7a5a2a;text-align:center;min-height:30px;margin-top:6px;line-height:1.6"></div>'+
+    '<div style="font-family:IM Fell English,serif;font-size:10px;color:#4a3018;text-align:center;margin-top:4px;line-height:1.5">'+
+    '📋 Otwórz tę samą stronę w 2 zakładkach<br>lub na 2 urządzeniach w tej samej sieci</div>';
 }
 
 function onlineSetStatus(msg,color){
-  var s=$id('online-status');if(s){s.textContent=msg;s.style.color=color||'#7a5a2a';}
+  var s=$id('online-status');if(s){s.textContent=msg;s.style.color=color||'#c8a060';}
 }
 
 function onlineCreate(){
-  var name = ($id('online-name')&&$id('online-name').value.trim())||'Gracz';
-  ONLINE.myName = name;
-  ONLINE.isHost = true;
-  ONLINE.roomCode = Math.random().toString(36).substr(2,6).toUpperCase();
-  onlineSetStatus('Łączenie...','#88aaff');
-  onlineConnect(function(){
-    // tell server we're creating room
-    onlineSend({type:'create',room:ONLINE.roomCode,name:name});
-    showOnlineRoom(ONLINE.roomCode, true, name);
-  });
+  var name=($id('online-name')&&$id('online-name').value.trim())||'Host';
+  ONLINE.myName=name;ONLINE.isHost=true;
+  ONLINE.roomCode=Math.random().toString(36).substr(2,6).toUpperCase();
+  ONLINE.players=[name];
+  onlineSetupChannel();
+  // Write room to localStorage so guest can find it
+  try{
+    localStorage.setItem('hitman_room_'+ONLINE.roomCode, JSON.stringify({host:name,ts:Date.now()}));
+  }catch(e){}
+  onlineSend({type:'room_created',room:ONLINE.roomCode,host:name});
+  showOnlineRoom(ONLINE.roomCode, true, name);
+  onlineSetStatus('Czekaj na gościa...','#88aaff');
 }
 
 function onlineJoin(){
-  var name = ($id('online-name')&&$id('online-name').value.trim())||'Gracz';
-  var code = ($id('online-code')&&$id('online-code').value.trim().toUpperCase())||'';
+  var name=($id('online-name')&&$id('online-name').value.trim())||'Gracz';
+  var code=($id('online-code')&&$id('online-code').value.trim().toUpperCase())||'';
   if(!code||code.length<3){onlineSetStatus('Wpisz kod pokoju!','#cc4444');return;}
-  ONLINE.myName = name;
-  ONLINE.isHost = false;
-  ONLINE.roomCode = code;
-  onlineSetStatus('Łączenie...','#88aaff');
-  onlineConnect(function(){
-    onlineSend({type:'join',room:code,name:name});
-  });
+  ONLINE.myName=name;ONLINE.isHost=false;ONLINE.roomCode=code;ONLINE.myIdx=1;
+  onlineSetupChannel();
+  onlineSetStatus('Dołączam do pokoju '+code+'...','#88aaff');
+  // Send join message
+  onlineSend({type:'join',room:code,name:name});
+  showOnlineRoom(code, false, name);
+  startLocalStoragePolling();
 }
 
-function onlineConnect(cb){
+function onlineSetupChannel(){
+  if(ONLINE.bc){try{ONLINE.bc.close();}catch(e){}}
   try{
-    // Use a free public WebSocket echo/relay — wss://socketsbay.com/wss/v2/1/demo/ or similar
-    // We use a broadcast channel approach: messages are JSON with room code for filtering
-    var url = 'wss://ws.postman-echo.com/raw';
-    ONLINE.ws = new WebSocket(url);
-    ONLINE.ws.onopen = function(){
-      ONLINE.connected = true;
-      if(cb) cb();
+    ONLINE.bc = new BroadcastChannel('hitman_'+ONLINE.roomCode);
+    ONLINE.bc.onmessage = function(e){
+      try{onlineHandleMessage(e.data);}catch(err){console.log('msg err',err);}
     };
-    ONLINE.ws.onmessage = function(e){
-      try{
-        var msg = JSON.parse(e.data);
-        if(msg.room !== ONLINE.roomCode) return;
-        onlineHandleMessage(msg);
-      }catch(err){}
-    };
-    ONLINE.ws.onerror = function(){
-      onlineSetStatus('Błąd połączenia. Sprawdź internet.','#cc4444');
-      ONLINE.connected = false;
-    };
-    ONLINE.ws.onclose = function(){
-      ONLINE.connected = false;
-      if(G&&!G.over) onlineSetStatus('Rozłączono.','#cc4444');
-    };
-  }catch(err){
-    onlineSetStatus('WebSocket niedostępny.','#cc4444');
+  }catch(e){
+    onlineSetStatus('BroadcastChannel niedostępny w tej przeglądarce','#cc4444');
   }
 }
 
 function onlineSend(msg){
-  if(ONLINE.ws&&ONLINE.ws.readyState===1){
-    ONLINE.ws.send(JSON.stringify(msg));
+  if(ONLINE.bc){
+    try{ONLINE.bc.postMessage(msg);}catch(e){}
   }
+  // Also write to localStorage for cross-window fallback
+  try{
+    var key='hitman_msg_'+ONLINE.roomCode;
+    var existing=[];
+    try{existing=JSON.parse(localStorage.getItem(key)||'[]');}catch(e2){}
+    existing.push({msg:msg,ts:Date.now()});
+    // keep only last 20 messages
+    if(existing.length>20)existing=existing.slice(-20);
+    localStorage.setItem(key,JSON.stringify(existing));
+  }catch(e){}
+}
+
+// Poll localStorage for messages (cross-device fallback)
+var _lastMsgTs=0;
+function startLocalStoragePolling(){
+  if(!ONLINE.roomCode)return;
+  setInterval(function(){
+    try{
+      var key='hitman_msg_'+ONLINE.roomCode;
+      var msgs=JSON.parse(localStorage.getItem(key)||'[]');
+      msgs.forEach(function(m){
+        if(m.ts>_lastMsgTs){
+          _lastMsgTs=m.ts;
+          if(m.msg&&m.msg.room===ONLINE.roomCode){
+            onlineHandleMessage(m.msg);
+          }
+        }
+      });
+    }catch(e){}
+  },400);
 }
 
 function onlineHandleMessage(msg){
+  if(!msg||!msg.type)return;
+  if(msg.room&&msg.room!==ONLINE.roomCode)return; // filter other rooms
+
   if(msg.type==='join'){
-    // host sees guest joining
     if(ONLINE.isHost){
-      ONLINE.players = [ONLINE.myName, msg.name];
+      ONLINE.players=[ONLINE.myName, msg.name];
       var c=$id('online-room-players');
-      if(c)c.innerHTML='<div style="color:#44ff88">● '+ONLINE.myName+' (ты)</div><div style="color:#f5c842">● '+msg.name+'</div>';
+      if(c)c.innerHTML=
+        '<div style="color:#44ff88;font-family:Cinzel,serif;font-size:12px">● '+ONLINE.myName+' (Ty — host)</div>'+
+        '<div style="color:#f5c842;font-family:Cinzel,serif;font-size:12px">● '+msg.name+'</div>';
       var sb=$id('online-start-btn');if(sb)sb.style.display='block';
-      onlineSend({type:'guest_confirmed',room:ONLINE.roomCode,name:msg.name,host:ONLINE.myName});
+      onlineSetStatus('Gracz '+msg.name+' dołączył!','#44ff88');
+      // Reply to guest with confirmation
+      setTimeout(function(){
+        onlineSend({type:'guest_ok',room:ONLINE.roomCode,name:msg.name,host:ONLINE.myName});
+      },100);
     }
   }
-  if(msg.type==='guest_confirmed'){
+  if(msg.type==='guest_ok'){
     if(!ONLINE.isHost){
       ONLINE.players=[msg.host, msg.name];
-      showOnlineRoom(ONLINE.roomCode, false, ONLINE.myName);
       var c=$id('online-room-players');
-      if(c)c.innerHTML='<div style="color:#f5c842">● '+msg.host+' (host)</div><div style="color:#44ff88">● '+msg.name+' (ты)</div>';
+      if(c)c.innerHTML=
+        '<div style="color:#f5c842;font-family:Cinzel,serif;font-size:12px">● '+msg.host+' (host)</div>'+
+        '<div style="color:#44ff88;font-family:Cinzel,serif;font-size:12px">● '+msg.name+' (Ty)</div>';
+      onlineSetStatus('Połączono! Czekaj aż host rozpocznie...','#44ff88');
     }
   }
   if(msg.type==='start'){
-    startOnlineGame(msg.gameState, ONLINE.isHost?0:1);
+    if(!ONLINE.isHost){ // guest receives start
+      ONLINE.players=msg.players||ONLINE.players;
+      startOnlineGame(msg.gameState, 1);
+    }
   }
   if(msg.type==='action'){
-    applyOnlineAction(msg.action);
+    // Only apply if it's not from ourselves
+    if(msg.senderIdx!==ONLINE.myIdx){
+      applyOnlineAction(msg.action);
+    }
   }
 }
 
@@ -2154,18 +2225,20 @@ function showOnlineRoom(code, isHost, myName){
 
 function onlineStartGame(){
   if(!ONLINE.isHost)return;
-  // build a 2-player local game state and sync
   setupMode='online';
-  var p1={name:ONLINE.players[0]||'Host',isBot:false,hand:[],alive:true,char:'ghost',personality:'human'};
-  var p2={name:ONLINE.players[1]||'Guest',isBot:false,hand:[],alive:true,char:'wolf',personality:'human'};
+  var hostName=ONLINE.players[0]||'Host';
+  var guestName=ONLINE.players[1]||'Guest';
   CFG.hitman=1;
   var safe=20;var b=Math.floor(safe/4),r=safe%4;
   CFG.s1=b+(r>0?1:0);CFG.s2=b+(r>1?1:0);CFG.s3=b+(r>2?1:0);CFG.s4=b;
   CFG.shuffle=3;CFG.fake=2;CFG.angel=3;CFG.steal=2;CFG.give=2;CFG.cancel=2;
   var deck=buildDeck();
-  var state={deck:deck.map(function(c){return c.uid;}),seed:Date.now()};
-  onlineSend({type:'start',room:ONLINE.roomCode,gameState:state});
+  var deckUids=deck.map(function(c){return c.uid;});
+  var state={deck:deckUids,seed:Date.now(),players:[hostName,guestName]};
+  // Send start to guest
+  onlineSend({type:'start',room:ONLINE.roomCode,gameState:state,players:[hostName,guestName]});
   startOnlineGame(state, 0);
+  startLocalStoragePolling();
 }
 
 function startOnlineGame(state, myIdx){
