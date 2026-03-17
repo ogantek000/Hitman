@@ -72,16 +72,6 @@ body,html{width:100%;height:100%;overflow:hidden;background:#0c0704;font-family:
 .sl{font-size:clamp(6px,1.2vw,8px);letter-spacing:2px;color:#5a3a18;margin-bottom:1px;font-family:'Cinzel',serif}
 .sv{font-size:clamp(11px,2.5vw,15px);font-family:'Cinzel',serif}
 
-#jazz-man{position:absolute;right:clamp(4px,1.5vw,14px);bottom:clamp(72px,14vh,120px);z-index:7;width:clamp(50px,8vw,72px);height:clamp(80px,13vw,115px);pointer-events:none;display:none;filter:drop-shadow(2px 4px 8px #000000aa);}
-#jazz-man svg{width:100%;height:100%}
-@keyframes sway{0%,100%{transform:rotate(-2deg) translateY(0px)}25%{transform:rotate(1.5deg) translateY(-2px)}50%{transform:rotate(-1deg) translateY(-3px)}75%{transform:rotate(2deg) translateY(-1px)}}
-@keyframes horn-bob{0%,100%{transform:rotate(0deg)}33%{transform:rotate(4deg) translateX(1px)}66%{transform:rotate(-3deg) translateX(-1px)}}
-@keyframes note-float{0%{opacity:0;transform:translateY(0) scale(.7) rotate(-10deg)}15%{opacity:1}80%{opacity:.7}100%{opacity:0;transform:translateY(-28px) scale(1.1) rotate(15deg)}}
-#jazz-body{animation:sway 1.4s ease-in-out infinite;transform-origin:bottom center}
-#jazz-horn{animation:horn-bob 0.7s ease-in-out infinite;transform-origin:left center}
-.jazz-note{position:absolute;font-size:clamp(9px,1.8vw,13px);color:#f5c84288;animation:note-float 2s ease-out infinite;pointer-events:none;font-family:serif;}
-.jazz-note:nth-child(1){right:0%;bottom:65%;animation-delay:0s}.jazz-note:nth-child(2){right:-20%;bottom:75%;animation-delay:.6s}.jazz-note:nth-child(3){right:10%;bottom:80%;animation-delay:1.2s}
-
 .opp{position:absolute;display:flex;flex-direction:column;align-items:center;gap:2px;z-index:6}
 .opp-frame{width:clamp(44px,7.5vw,60px);height:clamp(44px,7.5vw,60px);border-radius:6px;border:2px solid #4a2a10;background:linear-gradient(160deg,#1a0e06,#0c0804);position:relative;overflow:hidden;flex-shrink:0;box-shadow:0 4px 12px #00000088,inset 0 1px 0 #7a4a1033;transition:border-color .3s,box-shadow .3s;}
 .opp-frame.act{border-color:var(--gold2);box-shadow:0 0 16px #f5c84288,0 4px 12px #000}
@@ -227,66 +217,6 @@ body,html{width:100%;height:100%;overflow:hidden;background:#0c0704;font-family:
   </div>
 
   <div id="opps"></div>
-
-  <!-- JAZZ MUSICIAN -->
-  <div id="jazz-man">
-    <div class="jazz-note">♪</div>
-    <div class="jazz-note">♫</div>
-    <div class="jazz-note">♩</div>
-    <svg viewBox="0 0 72 115" xmlns="http://www.w3.org/2000/svg" id="jazz-body">
-      <defs>
-        <linearGradient id="suit_g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#2a2a3a"/><stop offset="100%" stop-color="#181820"/></linearGradient>
-        <linearGradient id="skin_g" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#c8956a"/><stop offset="100%" stop-color="#a87050"/></linearGradient>
-        <linearGradient id="hat_g" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#1a1a22"/><stop offset="100%" stop-color="#0c0c14"/></linearGradient>
-        <linearGradient id="horn_g" x1="0%" y1="0%" x2="100%" y2="0%"><stop offset="0%" stop-color="#b8860a"/><stop offset="50%" stop-color="#d4a820"/><stop offset="100%" stop-color="#f5c842"/></linearGradient>
-      </defs>
-      <rect x="24" y="82" width="9" height="28" rx="4" fill="url(#suit_g)" stroke="#111" stroke-width=".5"/>
-      <rect x="39" y="82" width="9" height="28" rx="4" fill="url(#suit_g)" stroke="#111" stroke-width=".5"/>
-      <ellipse cx="28" cy="110" rx="8" ry="4" fill="#0a0a0a"/>
-      <ellipse cx="43" cy="110" rx="8" ry="4" fill="#0a0a0a"/>
-      <path d="M16 55 Q14 88 22 90 L50 90 Q58 88 56 55 Q50 50 36 50 Q22 50 16 55Z" fill="url(#suit_g)" stroke="#111" stroke-width=".5"/>
-      <path d="M36 52 L28 66 L36 64Z" fill="#3a3a4e"/><path d="M36 52 L44 66 L36 64Z" fill="#3a3a4e"/>
-      <rect x="32" y="56" width="8" height="12" rx="2" fill="#e8e8ee"/>
-      <path d="M36 58 L34 72 L36 74 L38 72 L36 58Z" fill="#8a1010"/>
-      <path d="M47 62 L51 60 L52 64Z" fill="#e8e8ee"/>
-      <g id="jazz-horn">
-        <path d="M18 57 Q8 65 4 72" stroke="url(#suit_g)" stroke-width="9" fill="none" stroke-linecap="round"/>
-        <path d="M4 72 Q2 78 6 82" stroke="url(#suit_g)" stroke-width="8" fill="none" stroke-linecap="round"/>
-        <ellipse cx="7" cy="84" rx="5" ry="4" fill="url(#skin_g)"/>
-        <path d="M7 82 Q18 78 30 76 Q38 75 44 74" stroke="url(#horn_g)" stroke-width="4" fill="none" stroke-linecap="round"/>
-        <rect x="18" y="73" width="4" height="8" rx="2" fill="#c8a010"/><rect x="24" y="73" width="4" height="8" rx="2" fill="#c8a010"/><rect x="30" y="73" width="4" height="8" rx="2" fill="#c8a010"/>
-        <circle cx="20" cy="72" r="2" fill="#b89010"/><circle cx="26" cy="72" r="2" fill="#b89010"/><circle cx="32" cy="72" r="2" fill="#b89010"/>
-        <path d="M44 74 Q52 72 56 68 Q60 65 58 62 Q56 60 50 62 Q46 64 44 68Z" fill="url(#horn_g)" stroke="#b89010" stroke-width=".5"/>
-        <path d="M7 82 Q4 80 2 78" stroke="#c8a010" stroke-width="3" fill="none" stroke-linecap="round"/>
-      </g>
-      <path d="M54 57 Q60 70 58 82" stroke="url(#suit_g)" stroke-width="9" fill="none" stroke-linecap="round"/>
-      <ellipse cx="57" cy="84" rx="5" ry="4" fill="url(#skin_g)"/>
-      <rect x="31" y="44" width="10" height="10" rx="3" fill="url(#skin_g)"/>
-      <ellipse cx="36" cy="35" rx="14" ry="15" fill="url(#skin_g)"/>
-      <ellipse cx="36" cy="37" rx="11" ry="11" fill="#c09060" opacity=".3"/>
-      <path d="M30 33 Q32 31 34 33" stroke="#3a1a08" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-      <path d="M38 33 Q40 31 42 33" stroke="#3a1a08" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-      <path d="M29 30 Q32 28 35 30" stroke="#3a1a08" stroke-width="1.2" fill="none"/>
-      <path d="M37 30 Q40 28 43 30" stroke="#3a1a08" stroke-width="1.2" fill="none"/>
-      <ellipse cx="29" cy="37" rx="4" ry="3" fill="#d4956a" opacity=".5"/>
-      <ellipse cx="43" cy="37" rx="4" ry="3" fill="#d4956a" opacity=".5"/>
-      <ellipse cx="36" cy="40" rx="4" ry="2.5" fill="#8a4030"/>
-      <ellipse cx="36" cy="40" rx="3" ry="1.5" fill="#6a2818"/>
-      <path d="M31 38 Q36 36 41 38" stroke="#2a1008" stroke-width="1.8" fill="none"/>
-      <ellipse cx="36" cy="22" rx="18" ry="5" fill="url(#hat_g)"/>
-      <ellipse cx="36" cy="21" rx="17" ry="4" fill="#22223a"/>
-      <rect x="22" y="6" width="28" height="17" rx="6" fill="url(#hat_g)"/>
-      <rect x="22" y="19" width="28" height="3" rx="1" fill="#8a1010"/>
-      <ellipse cx="36" cy="7" rx="10" ry="3" fill="#0c0c14" opacity=".4"/>
-      <path d="M30 50 L28 55 L36 52Z" fill="#e8e8ee"/>
-      <path d="M42 50 L44 55 L36 52Z" fill="#e8e8ee"/>
-    </svg>
-  </div>
-
-  <div id="action-zone">
-    <div id="btn-row"></div>
-    <div id="hand-cards"></div>
-  </div>
 
   <!-- HITMAN OVERLAY -->
   <div class="modal-bg" id="hitman-ov" style="z-index:58">
