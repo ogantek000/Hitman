@@ -233,7 +233,7 @@ body,html{width:100%;height:100%;overflow:hidden;background:#0c0704;font-family:
     <div class="place-btns" id="place-btns"></div>
   </div>
 
-  <!-- PICKER -->
+  <!-- PICKER (player/type selection) -->
   <div class="modal-bg" id="picker-ov" style="z-index:62">
     <div class="modal-title" id="picker-ttl">WYBIERZ GRACZA</div>
     <div id="picker-list"></div>
@@ -427,7 +427,6 @@ function showMenu(){
   $id('setup-ov').style.display='none';
   $id('online-ov').style.display='none';
   var eb=$id('exit-btn');if(eb)eb.style.display='none';
-  var jm=$id('jazz-man');if(jm)jm.style.display='none';
   ['win-ov','hitman-ov','angel-ov','picker-ov'].forEach(function(id){$id(id).style.display='none';});
   G=null;
 }
@@ -619,7 +618,6 @@ function startGame(){
   G=makeGameState(players,buildDeck());
   $id('setup-ov').style.display='none';
   $id('exit-btn').style.display='block';
-  var jm=$id('jazz-man');if(jm)jm.style.display='block';
   render();
   if(isCurBot())setTimeout(botTurn,1500);
 }
@@ -633,6 +631,8 @@ function makeGameState(players,deck){
     drawsLeft:3,newCardIdx:-1,playedCardThisTurn:false,
     direction:1,chainedCard:null,chainTurnsLeft:0,
     doubleTarget:-1,doublingTurn:false,
+    // online-only: pending power awaiting picker input
+    pendingPower:null,
   };
 }
 
@@ -771,7 +771,7 @@ function selectCard(idx){
     if(c&&c.id!=='angel')G.phase='hand-play';
   }
   renderHandAndButtons();
-  if(G.onlineMode&&!OL.isHost)olAct({t:'sel',i:G.selectedCard});
+  // In online mode, guest selection state stays local – no need to broadcast selection
 }
 
 function playSelected(){
@@ -779,13 +779,20 @@ function playSelected(){
   if(G.selectedCard<0||G.selectedCard===G.newCardIdx)return;
   var cur=G.players[G.cur];if(!cur||!cur.alive)return;
   var c=cur.hand[G.selectedCard];if(!c||c.id==='angel')return;
-  if(G.onlineMode&&!OL.isHost){olAct({t:'play',i:G.selectedCard});return;}
+  if(G.onlineMode&&!OL.isHost){
+    // Guest sends play action to host; host executes and pushes back full state
+    olSend({t:'act',a:{t:'play',i:G.selectedCard}});
+    return;
+  }
   G.locked=true;
   cur.hand.splice(G.selectedCard,1);
   if(G.newCardIdx>G.selectedCard)G.newCardIdx--;
   G.selectedCard=-1;pushDiscard(c);
   if(c.power){
-    executePower(c,cur,function(){G.locked=false;if(G.onlineMode)olPush();});
+    executePower(c,cur,function(){
+      G.locked=false;
+      if(G.onlineMode)olPush();
+    });
   } else {
     G.playedCardThisTurn=true;showNotif(c.art+' '+c.name,'#449944');
     G.phase='draw';G.newCardIdx=-1;
@@ -796,7 +803,7 @@ function playSelected(){
 
 function endHandPlay(){
   if(!G||G.locked||G.phase!=='hand-play')return;
-  if(G.onlineMode&&!OL.isHost){olAct({t:'end'});return;}
+  if(G.onlineMode&&!OL.isHost){olSend({t:'act',a:{t:'end'}});return;}
   G.selectedCard=-1;G.phase='draw';G.newCardIdx=-1;nextTurn();
   if(G.onlineMode)olPush();
 }
@@ -804,7 +811,7 @@ function endHandPlay(){
 function endTurnEarly(){
   if(!G||G.locked||G.phase!=='draw')return;
   if(G.drawsLeft===3&&!G.playedCardThisTurn){showNotif('MUSISZ DOBRAĆ LUB ZAGRAĆ!','#cc4444');return;}
-  if(G.onlineMode&&!OL.isHost){olAct({t:'end'});return;}
+  if(G.onlineMode&&!OL.isHost){olSend({t:'act',a:{t:'end'}});return;}
   G.selectedCard=-1;G.newCardIdx=-1;nextTurn();
   if(G.onlineMode)olPush();
 }
@@ -813,7 +820,7 @@ function humanDraw(){
   if(!G||G.over||G.locked)return;
   if(G.phase!=='draw'||G.drawsLeft<=0)return;
   if(G.deck.length===0){showNotif('TALIA PUSTA!','#cc4444');return;}
-  if(G.onlineMode&&!OL.isHost){olAct({t:'draw'});return;}
+  if(G.onlineMode&&!OL.isHost){olSend({t:'act',a:{t:'draw'}});return;}
   G.locked=true;G.selectedCard=-1;
   doDrawCard(function(){
     G.locked=false;render();
@@ -842,6 +849,14 @@ function doDrawCard(cb){
     for(var i=0;i<cur.hand.length;i++)if(cur.hand[i].id==='angel'){aIdx=i;break;}
     if(aIdx>=0&&!cur.isBot){
       G.phase='hitman-choice';
+      // Online: the current player (whoever drew hitman) sees this overlay
+      // In online mode this function only runs on host; host shows UI if it's host's turn,
+      // or we tell guest via a special state flag and guest shows the overlay
+      if(G.onlineMode&&OL.pIdx!==G.cur){
+        // Host drew hitman but it's actually guest's turn - shouldn't happen since
+        // doDrawCard only runs on host. Guest turn is handled via olDoGuestAction.
+        // So here G.cur === OL.pIdx (host turn). Show overlay for host.
+      }
       $id('hitman-sub').textContent='Masz Anioła w ręce. Czy chcesz go użyć?';
       $id('hitman-angel-btn').innerHTML='<button class="abtn btn-gold" onclick="useAngel('+aIdx+')">😇 Użyj Anioła</button>';
       $id('hitman-ov').style.display='flex';
@@ -878,13 +893,28 @@ function doDrawCard(cb){
 
 /* ================================================================
    EXECUTE POWER
+   ─────────────────────────────────────────────────────────────────
+   KEY FIX: This function MUST only be called on the HOST (or in
+   local/offline mode). It NEVER calls nextTurn() directly — that
+   is the caller's responsibility AFTER the async callback fires.
+
+   For cards that require a UI picker (steal/give/purge/double/peek),
+   we:
+     • In local mode: show picker UI, wait for callback, then cb()
+     • In online mode: store pendingPower on G, push state to guest so
+       guest can render the picker, then wait for guest's picker-result
+       message. Only after receiving that do we resolve the power.
 ================================================================ */
 function executePower(c,cur,cb){
   G.playedCardThisTurn=true;
+
+  // Chain block check
   if(G.chainedCard&&G.chainedCard.id===c.id&&G.chainTurnsLeft>0){
     showNotif('⛓️ ZABLOKOWANE!','#cc8800');
     G.phase='draw';G.newCardIdx=-1;render();nextTurn();if(cb)cb();return;
   }
+
+  // ── Instant effects (no picker needed) ──
   if(c.id==='shuffle'){
     G.deck=shuffleArr(G.deck);showNotif('🔀 TASOWANIE!','#8888ff');
     G.lastPow=cardObjClean(c);G.phase='draw';G.newCardIdx=-1;render();nextTurn();if(cb)cb();return;
@@ -898,34 +928,6 @@ function executePower(c,cur,cb){
     else showNotif('🚫 BRAK EFEKTU','#666');
     G.lastPow=null;G.phase='draw';G.newCardIdx=-1;render();nextTurn();if(cb)cb();return;
   }
-  if(c.id==='steal'||c.id==='give'){
-    var tgts=getOthersAlive().filter(function(p){return p.hand.length>0;});
-    if(!tgts.length){G.phase='draw';G.newCardIdx=-1;render();nextTurn();if(cb)cb();return;}
-    var ttl=c.id==='steal'?'🗃️ Ukradnij kartę od':'🤝 Wymusz kartę od';
-    showPicker(ttl,tgts,function(t){
-      var s=t.hand.splice(rnd(0,t.hand.length-1),1)[0];
-      cur.hand.push(s);
-      showNotif(c.id==='steal'?'🗃️ KRADZIEŻ!':'🤝 WYMUSZENIE!',c.id==='steal'?'#88ccff':'#ff88aa');
-      G.lastPow=cardObjClean(c);G.phase='draw';G.newCardIdx=-1;render();nextTurn();
-    });
-    G.phase='picking';render();if(cb)cb();return;
-  }
-  if(c.id==='peek'){
-    var top3=G.deck.slice(-3).reverse();
-    G.lastPow=cardObjClean(c);
-    showPeekCards(top3,cur.isBot);
-    G.phase='draw';G.newCardIdx=-1;render();
-    if(cur.isBot){nextTurn();if(cb)cb();}
-    else{if(cb)cb();}
-    return;
-  }
-  if(c.id==='chain'){
-    if(G.lastPow&&G.lastPow.id!=='hitman'){
-      G.chainedCard=G.lastPow;G.chainTurnsLeft=3;
-      showNotif('⛓️ ŁAŃCUCH: '+G.lastPow.name+' ZABLOKOWANE!','#cc8800');
-    } else showNotif('⛓️ ŁAŃCUCH – brak celu','#666');
-    G.lastPow=cardObjClean(c);G.phase='draw';G.newCardIdx=-1;render();nextTurn();if(cb)cb();return;
-  }
   if(c.id==='addhit'){
     var pos=rnd(0,G.deck.length);
     G.deck.splice(pos,0,{id:'hitman',name:'HITMAN',art:'🔫',type:'hit',power:false,uid:'hitman_add_'+Date.now()});
@@ -937,40 +939,12 @@ function executePower(c,cur,cb){
     showNotif('🔁 ODWRÓT KOLEJKI!',G.direction===1?'#88aaff':'#ffaa88');
     G.lastPow=cardObjClean(c);G.phase='draw';G.newCardIdx=-1;render();nextTurn();if(cb)cb();return;
   }
-  if(c.id==='copy'){
-    if(G.lastPow&&G.lastPow.id!=='hitman'&&G.lastPow.power){
-      showNotif('🪞 KOPIA: '+G.lastPow.name,'#cc88ff');
-      var copied=G.lastPow;
-      setTimeout(function(){executePower(copied,cur,cb);},300);
-    } else {
-      showNotif('🪞 KOPIA – brak mocy','#666');
-      G.phase='draw';G.newCardIdx=-1;render();nextTurn();if(cb)cb();
-    }
-    return;
-  }
-  if(c.id==='purge'){
-    var typesInDeck={};
-    G.deck.forEach(function(dc){typesInDeck[dc.id]=dc.name;});
-    var available=Object.keys(typesInDeck).map(function(t){return{name:typesInDeck[t],id:t};});
-    if(!available.length){showNotif('🗑️ TALIA PUSTA','#666');G.phase='draw';G.newCardIdx=-1;render();nextTurn();if(cb)cb();return;}
-    showTypePicker('🗑️ USUŃ RODZAJ KART',available,function(tid){
-      var tname=typesInDeck[tid]||tid;
-      G.deck=G.deck.filter(function(dc){return dc.id!==tid;});
-      G.discardPile=G.discardPile.filter(function(dc){return dc.id!==tid;});
-      showNotif('🗑️ USUNIĘTO: '+tname,'#ff8844');
-      G.lastPow=cardObjClean(c);G.phase='draw';G.newCardIdx=-1;render();nextTurn();
-    });
-    G.phase='picking';render();if(cb)cb();return;
-  }
-  if(c.id==='double'){
-    var tgts=getOthersAlive();
-    if(!tgts.length){G.phase='draw';G.newCardIdx=-1;render();nextTurn();if(cb)cb();return;}
-    showPicker('⏩ Kto gra 2 razy z rzędu?',tgts,function(t){
-      G.doubleTarget=G.players.indexOf(t);G.doublingTurn=false;
-      showNotif('⏩ '+t.name+' GRA 2 KOLEJKI!','#ffcc44');
-      G.lastPow=cardObjClean(c);G.phase='draw';G.newCardIdx=-1;render();nextTurn();
-    });
-    G.phase='picking';render();if(cb)cb();return;
+  if(c.id==='chain'){
+    if(G.lastPow&&G.lastPow.id!=='hitman'){
+      G.chainedCard=G.lastPow;G.chainTurnsLeft=3;
+      showNotif('⛓️ ŁAŃCUCH: '+G.lastPow.name+' ZABLOKOWANE!','#cc8800');
+    } else showNotif('⛓️ ŁAŃCUCH – brak celu','#666');
+    G.lastPow=cardObjClean(c);G.phase='draw';G.newCardIdx=-1;render();nextTurn();if(cb)cb();return;
   }
   if(c.id==='bottom'){
     if(G.deck.length===0){showNotif('TALIA PUSTA','#cc4444');G.phase='draw';G.newCardIdx=-1;render();nextTurn();if(cb)cb();return;}
@@ -983,7 +957,174 @@ function executePower(c,cur,cb){
     if(G.drawsLeft<=0){setTimeout(function(){G.newCardIdx=-1;nextTurn();if(G.onlineMode)olPush();},600);}
     if(cb)cb();return;
   }
+  if(c.id==='copy'){
+    if(G.lastPow&&G.lastPow.id!=='hitman'&&G.lastPow.power){
+      showNotif('🪞 KOPIA: '+G.lastPow.name,'#cc88ff');
+      var copied=G.lastPow;
+      // Re-execute the copied card; cb chain continues from there
+      setTimeout(function(){executePower(copied,cur,cb);},300);
+    } else {
+      showNotif('🪞 KOPIA – brak mocy','#666');
+      G.phase='draw';G.newCardIdx=-1;render();nextTurn();if(cb)cb();
+    }
+    return;
+  }
+
+  // ── Picker-based effects ──
+  // These require the ACTIVE PLAYER to choose a target.
+  // In online mode the active player might be on guest side.
+  // Solution: set G.pendingPower so guest knows to show a picker,
+  // then guest sends back a picker-result, host resolves it.
+
+  if(c.id==='steal'||c.id==='give'){
+    var tgts=getOthersAlive().filter(function(p){return p.hand.length>0;});
+    if(!tgts.length){G.phase='draw';G.newCardIdx=-1;render();nextTurn();if(cb)cb();return;}
+
+    if(G.onlineMode&&G.cur===1){
+      // Guest's turn — tell guest to pick a target; suspend until result
+      G.pendingPower={card:cardObjClean(c),type:'target',targets:tgts.map(function(p){return G.players.indexOf(p);}),cb:cb};
+      G.phase='picking';
+      olPush(); // Guest will see pendingPower and show picker
+      // cb will be called when we receive picker-result from guest
+      return;
+    }
+    // Host or local: show picker here
+    var ttl=c.id==='steal'?'🗃️ Ukradnij kartę od':'🤝 Wymusz kartę od';
+    showPicker(ttl,tgts,function(t){
+      var s=t.hand.splice(rnd(0,t.hand.length-1),1)[0];
+      cur.hand.push(s);
+      showNotif(c.id==='steal'?'🗃️ KRADZIEŻ!':'🤝 WYMUSZENIE!',c.id==='steal'?'#88ccff':'#ff88aa');
+      G.lastPow=cardObjClean(c);G.phase='draw';G.newCardIdx=-1;render();nextTurn();
+      if(G.onlineMode)olPush();
+      if(cb)cb();
+    });
+    G.phase='picking';render();
+    return;
+  }
+
+  if(c.id==='peek'){
+    var top3=G.deck.slice(-3).reverse();
+    G.lastPow=cardObjClean(c);
+
+    if(G.onlineMode&&G.cur===1){
+      // Guest needs to see the peek cards
+      G.pendingPower={card:cardObjClean(c),type:'peek',cards:top3.map(cardObjClean),cb:cb};
+      G.phase='picking';
+      olPush();
+      return;
+    }
+    // Host or local
+    showPeekCards(top3,cur.isBot);
+    G.phase='draw';G.newCardIdx=-1;render();
+    if(cur.isBot){nextTurn();if(cb)cb();}
+    // else: human host, nextTurn() called in closePeekModal
+    return;
+  }
+
+  if(c.id==='purge'){
+    var typesInDeck={};
+    G.deck.forEach(function(dc){typesInDeck[dc.id]=dc.name;});
+    var available=Object.keys(typesInDeck).map(function(t){return{name:typesInDeck[t],id:t};});
+    if(!available.length){showNotif('🗑️ TALIA PUSTA','#666');G.phase='draw';G.newCardIdx=-1;render();nextTurn();if(cb)cb();return;}
+
+    if(G.onlineMode&&G.cur===1){
+      G.pendingPower={card:cardObjClean(c),type:'type',types:available,cb:cb};
+      G.phase='picking';
+      olPush();
+      return;
+    }
+    showTypePicker('🗑️ USUŃ RODZAJ KART',available,function(tid){
+      var tname=typesInDeck[tid]||tid;
+      G.deck=G.deck.filter(function(dc){return dc.id!==tid;});
+      G.discardPile=G.discardPile.filter(function(dc){return dc.id!==tid;});
+      showNotif('🗑️ USUNIĘTO: '+tname,'#ff8844');
+      G.lastPow=cardObjClean(c);G.phase='draw';G.newCardIdx=-1;render();nextTurn();
+      if(G.onlineMode)olPush();
+      if(cb)cb();
+    });
+    G.phase='picking';render();
+    return;
+  }
+
+  if(c.id==='double'){
+    var tgts=getOthersAlive();
+    if(!tgts.length){G.phase='draw';G.newCardIdx=-1;render();nextTurn();if(cb)cb();return;}
+
+    if(G.onlineMode&&G.cur===1){
+      G.pendingPower={card:cardObjClean(c),type:'target',targets:tgts.map(function(p){return G.players.indexOf(p);}),cb:cb};
+      G.phase='picking';
+      olPush();
+      return;
+    }
+    showPicker('⏩ Kto gra 2 razy z rzędu?',tgts,function(t){
+      G.doubleTarget=G.players.indexOf(t);G.doublingTurn=false;
+      showNotif('⏩ '+t.name+' GRA 2 KOLEJKI!','#ffcc44');
+      G.lastPow=cardObjClean(c);G.phase='draw';G.newCardIdx=-1;render();nextTurn();
+      if(G.onlineMode)olPush();
+      if(cb)cb();
+    });
+    G.phase='picking';render();
+    return;
+  }
+
   if(cb)cb();
+}
+
+/* ================================================================
+   RESOLVE PENDING POWER (host side, called when guest sends picker result)
+================================================================ */
+function olResolvePendingPower(result){
+  if(!G||!G.pendingPower)return;
+  var pp=G.pendingPower;
+  var cur=G.players[G.cur];
+  var cb=pp.cb||function(){};
+  G.pendingPower=null;
+
+  if(pp.type==='peek'){
+    // Guest already saw peek; just continue turn
+    G.lastPow=cardObjClean(pp.card);
+    G.phase='draw';G.newCardIdx=-1;render();nextTurn();
+    olPush();
+    return;
+  }
+
+  if(pp.type==='target'){
+    var tIdx=result.targetIdx;
+    var t=G.players[tIdx];
+    if(!t||!t.alive||t.hand.length===0){
+      // Fallback: pick first valid target
+      var aliveOthers=getOthersAlive().filter(function(p){return p.hand.length>0;});
+      if(aliveOthers.length)t=aliveOthers[0]; else {
+        G.phase='draw';G.newCardIdx=-1;render();nextTurn();olPush();return;
+      }
+    }
+    var cardId=pp.card.id;
+    if(cardId==='steal'||cardId==='give'){
+      var s=t.hand.splice(rnd(0,t.hand.length-1),1)[0];
+      cur.hand.push(s);
+      showNotif(cardId==='steal'?'🗃️ KRADZIEŻ!':'🤝 WYMUSZENIE!',cardId==='steal'?'#88ccff':'#ff88aa');
+    } else if(cardId==='double'){
+      G.doubleTarget=G.players.indexOf(t);G.doublingTurn=false;
+      showNotif('⏩ '+t.name+' GRA 2 KOLEJKI!','#ffcc44');
+    }
+    G.lastPow=cardObjClean(pp.card);
+    G.phase='draw';G.newCardIdx=-1;render();nextTurn();
+    olPush();
+    return;
+  }
+
+  if(pp.type==='type'){
+    var tid=result.typeId;
+    var tname=tid;
+    G.deck.forEach(function(dc){if(dc.id===tid)tname=dc.name;});
+    G.deck=G.deck.filter(function(dc){return dc.id!==tid;});
+    G.discardPile=G.discardPile.filter(function(dc){return dc.id!==tid;});
+    showNotif('🗑️ USUNIĘTO: '+tname,'#ff8844');
+    G.lastPow=cardObjClean(pp.card);
+    G.phase='draw';G.newCardIdx=-1;render();nextTurn();
+    olPush();
+    return;
+  }
 }
 
 /* ── peek modal ── */
@@ -1005,8 +1146,20 @@ function showPeekCards(cards,isBot){
 }
 function closePeekModal(){
   var ov=$id('peek-ov');if(ov)ov.style.display='none';
-  nextTurn();
-  if(G&&G.onlineMode)olPush();
+  // Only call nextTurn from here in local/offline mode
+  // In online mode, host's peek is handled differently
+  if(!G)return;
+  if(G.onlineMode&&OL.isHost){
+    // Host peeked — resolve normally
+    nextTurn();
+    olPush();
+  } else if(!G.onlineMode){
+    nextTurn();
+  }
+  // Guest peek: guest sends peek-done to host
+  if(G.onlineMode&&!OL.isHost){
+    olSend({t:'act',a:{t:'peek-done'}});
+  }
 }
 
 function showTypePicker(title,types,cb){
@@ -1031,23 +1184,9 @@ function useAngel(aIdx){
   cur.hand.splice(aIdx,1);
   if(G.newCardIdx>aIdx)G.newCardIdx--;
   $id('hitman-ov').style.display='none';
-  if(G.onlineMode&&!OL.isHost){
-    showAngelPlacementForGuest();
-  } else {
-    showAngelPlacement(function(){
-      if(G.onlineMode)olPush();
-    });
-  }
-}
-
-function showAngelPlacementForGuest(){
-  var dl=G.deck.length;
-  buildAngelButtons(dl,function(pos){
-    $id('angel-ov').style.display='none';
-    showNotif('😇 ANIOŁ RATUJE!','#ffff66');
-    olAct({t:'angel',pos:pos});
+  showAngelPlacement(function(){
+    if(G.onlineMode)olPush();
   });
-  $id('angel-ov').style.display='flex';
 }
 
 function showAngelPlacement(doneCb){
@@ -1060,6 +1199,7 @@ function showAngelPlacement(doneCb){
     G.phase='draw';G.newCardIdx=-1;
     $id('angel-ov').style.display='none';
     render();
+    nextTurn();
     if(doneCb)doneCb();
   });
   $id('angel-ov').style.display='flex';
@@ -1087,7 +1227,10 @@ function buildAngelButtons(dl,onPos){
 function acceptDeath(){
   if(!G)return;
   $id('hitman-ov').style.display='none';
-  if(G.onlineMode&&!OL.isHost){olAct({t:'die'});return;}
+  if(G.onlineMode&&!OL.isHost){
+    olSend({t:'act',a:{t:'die'}});
+    return;
+  }
   var cur=G.players[G.cur];
   cur.alive=false;G.phase='draw';G.lastPow=null;
   showNotif('💀 WYELIMINOWANY!','#ff2222');
@@ -1155,7 +1298,12 @@ function showPicker(title,targets,cb){
   });
   $id('picker-ov').style.display='flex';
 }
-function closePicker(){$id('picker-ov').style.display='none';if(G){G.phase='draw';G.newCardIdx=-1;nextTurn();}pickerCb=null;}
+function closePicker(){
+  $id('picker-ov').style.display='none';
+  if(G){G.phase='draw';G.newCardIdx=-1;nextTurn();}
+  pickerCb=null;
+  if(G&&G.onlineMode)olPush();
+}
 
 /* ================================================================
    WIN / NEXT TURN
@@ -1195,13 +1343,25 @@ function nextTurn(){
 }
 
 /* ================================================================
-   ONLINE MULTIPLAYER
-   Architecture:
-   - HOST runs ALL game logic
-   - After every state change, host calls olPush() → sends FULL state to guest
-   - Guest just renders whatever state it receives
-   - Guest button clicks → send tiny {t:'act'} message → host executes → host pushes
-   - Deck IS sent in full (needed for hitman detection on host side)
+   ONLINE MULTIPLAYER — FIXED ARCHITECTURE
+   ─────────────────────────────────────────────────────────────────
+   Principle: HOST IS THE SINGLE SOURCE OF TRUTH.
+   • ALL game logic (including power card effects) runs ONLY on host.
+   • Host pushes full G state to guest after every change.
+   • Guest is read-only: it displays state and sends input events.
+   • For picker-required powers played by guest:
+       1. Host sets G.pendingPower and pushes state (phase='picking')
+       2. Guest sees pendingPower in state → renders picker locally
+       3. Guest sends picker result back to host
+       4. Host resolves power, clears pendingPower, pushes new state
+   • Hitman drawn by guest:
+       1. Host detects hitman, sets G.phase='hitman-choice' and pushes
+       2. Guest sees phase and angel info → shows hitman overlay
+       3. Guest sends 'die' or 'angel' action → host resolves → pushes
+   • Peek for guest:
+       1. Host sets pendingPower with peek cards, pushes
+       2. Guest shows peek modal
+       3. Guest sends 'peek-done' → host resolves → pushes
 ================================================================ */
 var OL={peer:null,conn:null,code:null,name:'',isHost:false,pIdx:0,guestName:''};
 
@@ -1272,7 +1432,6 @@ function olJoin(){
         OL.conn.on('open',function(){
           olStat('🟢 Połączono! Czekaj na start hosta…','#44ff88');
           olSend({t:'hi',name:name});
-          // retry hi every 2s until acked
           OL._hiAcked=false;
           OL._hiRetry=setInterval(function(){
             if(OL._hiAcked){clearInterval(OL._hiRetry);return;}
@@ -1292,14 +1451,21 @@ function olSend(msg){
   if(OL.conn&&OL.conn.open)try{OL.conn.send(msg);}catch(e){}
 }
 
-/* ── FULL STATE PUSH (host → guest) ──
-   We send EVERYTHING needed to reconstruct the game on guest side.
-   This is the KEY fix: guest gets full deck array, full hands, etc.
-*/
+/* ── FULL STATE PUSH (host → guest) ── */
 function olPush(){
   if(!OL.isHost||!G)return;
+  // Serialize pendingPower but strip the cb function (not serializable)
+  var pp=null;
+  if(G.pendingPower){
+    pp={
+      card:G.pendingPower.card,
+      type:G.pendingPower.type,
+      targets:G.pendingPower.targets||null,
+      types:G.pendingPower.types||null,
+      cards:G.pendingPower.cards||null,
+    };
+  }
   var state={
-    // Full player data
     players:G.players.map(function(p){
       return{
         name:p.name,
@@ -1310,7 +1476,6 @@ function olPush(){
         personality:p.personality||'human'
       };
     }),
-    // Full deck (host needs to be authoritative; guest just displays)
     deck:G.deck.map(cardObjClean),
     discardPile:G.discardPile.slice(),
     discard:G.discard,
@@ -1327,15 +1492,20 @@ function olPush(){
     doubleTarget:G.doubleTarget||(-1),
     doublingTurn:!!G.doublingTurn,
     playedCardThisTurn:!!G.playedCardThisTurn,
-    locked:false, // guest never sees locked=true
+    locked:false,
+    pendingPower:pp,
+    // Include angel info for guest overlay
+    angelAIdx:G.angelAIdx!=null?G.angelAIdx:-1,
   };
   olSend({t:'state',s:state});
 }
 
-/* ── APPLY STATE (guest side) ── */
+/* ── APPLY STATE (guest side) ──
+   Guest applies the authoritative state from host.
+   Then checks for special UI that guest needs to show.
+*/
 function olApplyState(s){
   if(!G||!s)return;
-  // Update all fields
   if(s.players){
     for(var i=0;i<s.players.length&&i<G.players.length;i++){
       G.players[i].hand=s.players[i].hand||[];
@@ -1360,19 +1530,70 @@ function olApplyState(s){
   G.doublingTurn=!!s.doublingTurn;
   G.playedCardThisTurn=!!s.playedCardThisTurn;
   G.locked=false;
-  // Handle special overlays
+  G.pendingPower=s.pendingPower||null;
+
+  // Win
   if(G.over){
     var alive=G.players.filter(function(p){return p.alive;});
     $id('win-ov').style.display='flex';
     var wn=$id('win-name');if(wn)wn.textContent=alive[0]?alive[0].name:'NIKT';
+    render();return;
   }
-  // Close any pending overlays if we moved on
+
+  // Close overlays if we moved to draw phase
   if(G.phase==='draw'){
     $id('hitman-ov').style.display='none';
     $id('angel-ov').style.display='none';
     $id('picker-ov').style.display='none';
+    var po=$id('peek-ov');if(po)po.style.display='none';
   }
+
+  // Guest: handle hitman-choice (guest drew hitman)
+  if(G.phase==='hitman-choice'&&G.cur===OL.pIdx){
+    var myHand=G.players[OL.pIdx].hand;
+    var aIdx=-1;
+    for(var i=0;i<myHand.length;i++)if(myHand[i].id==='angel'){aIdx=i;break;}
+    $id('hitman-sub').textContent=aIdx>=0?'Masz Anioła w ręce. Czy chcesz go użyć?':'Zostałeś znaleziony...';
+    if(aIdx>=0){
+      $id('hitman-angel-btn').innerHTML='<button class="abtn btn-gold" onclick="guestUseAngel('+aIdx+')">😇 Użyj Anioła</button>';
+    } else {
+      $id('hitman-angel-btn').innerHTML='';
+    }
+    $id('hitman-ov').style.display='flex';
+  }
+
+  // Guest: handle pendingPower picker
+  if(G.pendingPower&&G.cur===OL.pIdx){
+    var pp=G.pendingPower;
+    if(pp.type==='peek'){
+      // Show peek cards then auto-send done
+      showPeekCards(pp.cards||[],false);
+      // closePeekModal will send peek-done
+    } else if(pp.type==='target'){
+      // Build target list from indices
+      var tgts=pp.targets.map(function(idx){return G.players[idx];}).filter(function(p){return p&&p.alive&&p.hand.length>0;});
+      var ttl=pp.card.id==='steal'?'🗃️ Ukradnij kartę od':
+              pp.card.id==='give'?'🤝 Wymusz kartę od':'⏩ Kto gra 2 razy z rzędu?';
+      showPicker(ttl,tgts,function(t){
+        var tIdx=G.players.indexOf(t);
+        olSend({t:'act',a:{t:'picker-result',res:{targetIdx:tIdx}}});
+      });
+    } else if(pp.type==='type'){
+      showTypePicker('🗑️ USUŃ RODZAJ KART',pp.types||[],function(tid){
+        olSend({t:'act',a:{t:'picker-result',res:{typeId:tid}}});
+      });
+    }
+  }
+
   render();
+}
+
+/* ── Guest angel actions ── */
+function guestUseAngel(aIdx){
+  // Guest tells host to use angel; host will set phase to angel-placement and push
+  // Then guest will see angel-ov should open
+  $id('hitman-ov').style.display='none';
+  olSend({t:'act',a:{t:'use-angel',aIdx:aIdx}});
 }
 
 /* ── Guest sends action ── */
@@ -1383,31 +1604,27 @@ function olAct(a){
 /* ── Host handles guest action ── */
 function olDoGuestAction(a){
   if(!OL.isHost||!G)return;
-  // Only process if it's guest's turn (pIdx=1)
-  if(G.cur!==1&&a.t!=='die'&&a.t!=='angel'){olPush();return;}
   var cur=G.players[1];
-  if(!cur||!cur.alive)return;
 
   if(a.t==='draw'){
+    if(G.cur!==1){olPush();return;}
     if(G.phase!=='draw'||G.drawsLeft<=0||G.deck.length===0){olPush();return;}
     G.locked=true;
     doDrawCard(function(){G.locked=false;render();olPush();});
+    return;
   }
-  else if(a.t==='end'){
+
+  if(a.t==='end'){
+    if(G.cur!==1){olPush();return;}
     if(G.drawsLeft===3&&!G.playedCardThisTurn){olPush();return;}
     G.selectedCard=-1;G.newCardIdx=-1;
     if(G.phase==='hand-play')G.phase='draw';
     nextTurn();olPush();
+    return;
   }
-  else if(a.t==='sel'){
-    G.selectedCard=a.i;
-    if(G.phase==='draw'&&a.i>=0&&a.i!==G.newCardIdx){
-      var c=cur.hand[a.i];
-      if(c&&c.id!=='angel')G.phase='hand-play';
-    }
-    olPush();
-  }
-  else if(a.t==='play'){
+
+  if(a.t==='play'){
+    if(G.cur!==1||!cur||!cur.alive){olPush();return;}
     var idx=a.i;
     if(idx<0||idx>=cur.hand.length){olPush();return;}
     var c=cur.hand[idx];
@@ -1417,30 +1634,77 @@ function olDoGuestAction(a){
     if(G.newCardIdx>idx)G.newCardIdx--;
     G.selectedCard=-1;pushDiscard(c);
     if(c.power){
-      executePower(c,cur,function(){G.locked=false;olPush();});
+      executePower(c,cur,function(){
+        G.locked=false;
+        // executePower may have set pendingPower; if so, olPush is called inside executePower
+        // If not pendingPower, push state now
+        if(!G.pendingPower)olPush();
+      });
     } else {
       G.playedCardThisTurn=true;
       G.phase='draw';G.newCardIdx=-1;
       nextTurn();G.locked=false;olPush();
     }
+    return;
   }
-  else if(a.t==='angel'){
-    var hc={id:'hitman',name:'HITMAN',art:'🔫',type:'hit',power:false,uid:'hitman_ret_'+Date.now()};
+
+  if(a.t==='use-angel'){
+    // Guest is using angel after drawing hitman
+    if(!cur||!cur.alive){olPush();return;}
+    var aIdx=a.aIdx;
+    if(aIdx<0||aIdx>=cur.hand.length||cur.hand[aIdx].id!=='angel'){olPush();return;}
+    cur.hand.splice(aIdx,1);
+    if(G.newCardIdx>aIdx)G.newCardIdx--;
+    // Host shows angel placement... but it's guest's choice where to put hitman.
+    // We need guest to choose: set pending and ask guest
+    G.phase='hitman-choice'; // reuse phase to signal angel placement needed on guest
+    G.pendingPower={card:{id:'angel',name:'ANIOŁ',art:'😇',type:'pow',power:true},type:'angel-place',cb:null};
+    olPush(); // guest will show angel-ov
+    return;
+  }
+
+  if(a.t==='angel-place'){
+    // Guest chose angel placement
+    G.pendingPower=null;
     var pos=Math.min(Math.max(0,a.pos),G.deck.length);
+    var hc={id:'hitman',name:'HITMAN',art:'🔫',type:'hit',power:false,uid:'hitman_ret_'+Date.now()};
     G.deck.splice(pos,0,hc);
     G.lastPow={id:'angel',name:'ANIOŁ',art:'😇',type:'pow',power:true};
     G.phase='draw';G.newCardIdx=-1;
-    $id('hitman-ov').style.display='none';
-    $id('angel-ov').style.display='none';
     showNotif('😇 ANIOŁ RATUJE!','#ffff66');
-    nextTurn();olPush();
+    render();nextTurn();olPush();
+    return;
   }
-  else if(a.t==='die'){
+
+  if(a.t==='die'){
+    if(!cur||!cur.alive){olPush();return;}
     cur.alive=false;G.phase='draw';G.lastPow=null;
+    G.pendingPower=null;
     $id('hitman-ov').style.display='none';
     showNotif('💀 WYELIMINOWANY!','#ff2222');
     if(!checkWin())nextTurn();olPush();
+    return;
   }
+
+  if(a.t==='picker-result'){
+    // Guest completed a picker; resolve the pending power
+    if(!G.pendingPower){olPush();return;}
+    olResolvePendingPower(a.res);
+    return;
+  }
+
+  if(a.t==='peek-done'){
+    // Guest closed peek modal
+    if(G.pendingPower&&G.pendingPower.type==='peek'){
+      olResolvePendingPower({});
+    } else {
+      olPush();
+    }
+    return;
+  }
+
+  // Fallback
+  olPush();
 }
 
 /* ── Incoming data handler ── */
@@ -1452,7 +1716,6 @@ function olRecv(d){
     return;
   }
 
-  // HOST receives guest's hi
   if(d.t==='hi'&&OL.isHost){
     OL.guestName=d.name||'Gracz 2';
     var rp=$id('ol-players');
@@ -1465,7 +1728,6 @@ function olRecv(d){
     return;
   }
 
-  // GUEST receives host's ok
   if(d.t==='ok'&&!OL.isHost){
     OL._hiAcked=true;
     if(OL._hiRetry)clearInterval(OL._hiRetry);
@@ -1477,19 +1739,16 @@ function olRecv(d){
     return;
   }
 
-  // GUEST receives init (game start)
   if(d.t==='init'&&!OL.isHost){
     olInitGuestGame(d);
     return;
   }
 
-  // GUEST receives full state update
   if(d.t==='state'&&!OL.isHost){
     olApplyState(d.s);
     return;
   }
 
-  // HOST receives guest's action
   if(d.t==='act'&&OL.isHost){
     olDoGuestAction(d.a);
     return;
@@ -1499,10 +1758,8 @@ function olRecv(d){
 /* ── Host starts the game ── */
 function olStartGame(){
   if(!OL.isHost||!OL.guestName)return;
-  // Use default config for online
   CFG={hitman:1,s1:5,s2:5,s3:5,s4:5,shuffle:2,fake:2,angel:3,steal:2,give:2,cancel:2,peek:1,chain:1,addhit:1,reverse:2,copy:1,purge:1,double:1,bottom:1};
   var deck=buildDeck();
-  // Deal 3 cards to each player
   var h1=[],h2=[];
   for(var i=0;i<3;i++){if(deck.length)h1.push(deck.pop());}
   for(var i=0;i<3;i++){if(deck.length)h2.push(deck.pop());}
@@ -1513,7 +1770,6 @@ function olStartGame(){
   G=makeGameState(players,deck);
   G.onlineMode=true;
   OL.pIdx=0;
-  // Send init to guest with full game state
   var initMsg={
     t:'init',
     hName:OL.name,
@@ -1526,13 +1782,11 @@ function olStartGame(){
   olSend(initMsg);
   hideAllOverlays();
   $id('exit-btn').style.display='block';
-  var jm=$id('jazz-man');if(jm)jm.style.display='block';
   render();
   setTimeout(olPush,300);
 }
 
 function olInitGuestGame(d){
-  // Build the SAME game state on guest side
   var players=[
     {name:d.hName,isBot:false,hand:d.h1||[],alive:true,char:d.hChar||'ghost',personality:'human'},
     {name:d.gName,isBot:false,hand:d.h2||[],alive:true,char:'wolf',personality:'human'},
@@ -1543,10 +1797,8 @@ function olInitGuestGame(d){
   OL.pIdx=1;
   hideAllOverlays();
   $id('exit-btn').style.display='block';
-  var jm=$id('jazz-man');if(jm)jm.style.display='block';
   render();
-  // Acknowledge to host
-  olSend({t:'guestReady'});
+  olSend({t:'act',a:{t:'guest-ready'}});
 }
 
 function hideAllOverlays(){
@@ -1555,6 +1807,42 @@ function hideAllOverlays(){
   });
   var po=$id('peek-ov');if(po)po.style.display='none';
 }
+
+/* ── Guest angel placement (shown via pendingPower=angel-place) ── */
+// Intercept angel-ov for guest: if it's guest's turn and pendingPower is angel-place
+// we reuse the angel-ov modal but wire buttons to send angel-place to host
+function guestShowAngelPlacement(dl){
+  var opts=[
+    {label:'🔝 Na sam wierzch',pos:dl},
+    {label:'2️⃣ Na 2. miejsce',pos:Math.max(dl-1,0)},
+    {label:'🎲 Losowo',pos:rnd(0,dl)},
+    {label:'📦 Na środek',pos:Math.floor(dl/2)},
+    {label:'⬇️ Na sam spód',pos:0},
+  ];
+  var seen={};var unique=[];
+  opts.forEach(function(o){if(!seen[o.pos]){seen[o.pos]=true;unique.push(o);}});
+  var pb=$id('place-btns');pb.innerHTML='';
+  unique.forEach(function(o){
+    var btn=document.createElement('button');btn.className='place-btn';btn.textContent=o.label;
+    var pos=o.pos;
+    btn.onclick=function(){
+      $id('angel-ov').style.display='none';
+      olSend({t:'act',a:{t:'angel-place',pos:pos}});
+    };
+    pb.appendChild(btn);
+  });
+  $id('angel-ov').style.display='flex';
+}
+
+// Hook into olApplyState: if pendingPower is angel-place and it's guest's turn, show angel modal
+var _origApplyState=olApplyState;
+olApplyState=function(s){
+  _origApplyState(s);
+  if(!G||!G.onlineMode||OL.isHost)return;
+  if(G.pendingPower&&G.pendingPower.type==='angel-place'&&G.cur===OL.pIdx){
+    guestShowAngelPlacement(G.deck.length);
+  }
+};
 
 /* ── Lobby UI ── */
 function olShowLobby(code,isHost,myName){
@@ -1584,7 +1872,21 @@ function olCopy(){
   }
 }
 
+// hand-cards div (not in template, add it)
+(function(){
+  var az=document.getElementById('action-zone');
+  if(az)return; // already in DOM via different structure
+  var div=document.createElement('div');div.id='action-zone';
+  div.innerHTML='<div id="btn-row"></div><div id="hand-cards"></div>';
+  document.getElementById('app').appendChild(div);
+})();
+
 showMenu();
 </script>
+<!-- hand cards + buttons zone (inline in body for correct z-order) -->
+<div id="action-zone" style="position:absolute;bottom:0;left:0;right:0;z-index:20;display:flex;flex-direction:column;align-items:center;padding-bottom:clamp(4px,1.5vh,10px);gap:clamp(3px,.8vh,6px);">
+  <div id="btn-row" style="display:flex;gap:7px;flex-wrap:wrap;justify-content:center;padding:0 8px"></div>
+  <div id="hand-cards" style="display:flex;align-items:flex-end;justify-content:center;flex-wrap:nowrap;padding:0 4px;max-width:100vw;overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;"></div>
+</div>
 </body>
 </html>
